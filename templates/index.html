@@ -1,88 +1,360 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <title>Telegram Cloner Web</title>
-  <link rel="stylesheet" href="/static/styles.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg: #0c0d12;
+      --panel: #141722;
+      --panel-alt: #1f222f;
+      --border: #2c2f3d;
+      --accent: #2ed573;
+      --accent-soft: rgba(46, 213, 115, 0.15);
+      --text: #f4f6fb;
+      --text-muted: #9ba2c7;
+      --danger: #ff6b6b;
+      --shadow: 0 10px 40px rgba(5, 8, 20, 0.7);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #05060a, #101226 60%);
+      font-family: "Inter", system-ui, sans-serif;
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .app {
+      width: min(1000px, 100%);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 22px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: var(--text);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+    }
+
+    input,
+    button,
+    select {
+      font-family: inherit;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #151823;
+      color: var(--text);
+      font-size: 14px;
+      transition: border 0.2s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .small-btn {
+      border-radius: 10px;
+      border: none;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .small-btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #051010;
+      box-shadow: 0 8px 20px rgba(46, 213, 115, 0.35);
+      border: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      border: none;
+      color: #120000;
+      box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+    }
+
+    .logs {
+      min-height: 260px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 12px;
+      background: #080a11;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #7cffa0;
+    }
+
+    .logs .line:nth-child(odd) {
+      color: #94a5ff;
+    }
+
+    .inline-notes {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .compact-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .panel.inline {
+      padding: 18px;
+    }
+
+    .links-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 600px) {
+      .top-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Telegram Cloner Web</h1>
+  <div class="app">
+    <div class="top-row">
+      <div>
+        <h1>Telegram Cloner веб</h1>
+        <div class="status-badge" id="auth-status">Статус: ожидаем phone</div>
+      </div>
+      <div class="links-row">
+        <button class="small-btn btn-secondary" onclick="refreshLogs()">Обновить логи</button>
+      </div>
+    </div>
 
-    <section class="panel">
+    <div class="panel">
       <h2>Авторизация</h2>
-      <p class="info">Номер вводите в международном формате, например <strong>+380501234567</strong>.</p>
-      <div class="auth-block">
-        <label>Номер телефона</label>
-        <input id="auth-phone" type="text" placeholder="+380501234567"/>
-        <button onclick="sendAuth('phone')">Отправить номер</button>
+      <div class="inline-notes">
+        Введите номер в формате <strong>+<код страны>номер</strong> (например, +380501234567).
       </div>
-      <div class="auth-block">
-        <label>Код подтверждения</label>
-        <input id="auth-code" type="text" placeholder="12345"/>
-        <button onclick="sendAuth('code')">Ввести код</button>
+      <div class="grid-2" style="margin-top: 12px;">
+        <div>
+          <label for="auth-phone">Телефон</label>
+          <input id="auth-phone" type="text" placeholder="+380501234567" autocomplete="tel" />
+        </div>
+        <div>
+          <label for="auth-code">Код</label>
+          <input id="auth-code" type="text" placeholder="12345" autocomplete="one-time-code" />
+        </div>
+        <div>
+          <label for="auth-password">Пароль 2FA</label>
+          <input id="auth-password" type="password" placeholder="опционально" autocomplete="current-password" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="btn-group">
+            <button class="small-btn btn-primary" onclick="requestCode()">Запросить код</button>
+            <button class="small-btn btn-primary" onclick="sendAuth('code')">Ввести код</button>
+            <button class="small-btn btn-secondary" onclick="sendAuth('password')">Отправить пароль</button>
+          </div>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button class="small-btn btn-danger" onclick="logout()">Сбросить сессию</button>
+        </div>
       </div>
-      <div class="auth-block">
-        <label>Пароль 2FA (если есть)</label>
-        <input id="auth-password" type="password" placeholder="Пароль 2FA"/>
-        <button onclick="sendAuth('password')">Отправить пароль</button>
-      </div>
-      <button class="logout" onclick="logout()">Сбросить сессию</button>
-      <div id="auth-status">Статус: требуется авторизация.</div>
-    </section>
+    </div>
 
-    <section class="panel">
-      <h2>Настройка</h2>
-      <label>API ID</label>
-      <input id="api-id" type="text"/>
-      <label>API Hash</label>
-      <input id="api-hash" type="password"/>
-      <label>Каналы-источники (через запятую)</label>
-      <input id="source-ids" type="text" placeholder="-100123,-100456"/>
-      <label>Целевой канал</label>
-      <input id="target-id" type="text" placeholder="-100789"/>
-      <label>Копировать с даты</label>
-      <input id="date-from" type="date"/>
-      <button class="start" onclick="start()">Начать миграцию</button>
-      <button class="stop" onclick="stop()">Остановить</button>
-    </section>
+    <div class="panel">
+      <h2>Настройки миграции</h2>
+      <div class="grid-2">
+        <div>
+          <label for="api-id">API ID</label>
+          <input id="api-id" type="text" placeholder="1234567" />
+        </div>
+        <div>
+          <label for="api-hash">API Hash</label>
+          <input id="api-hash" type="password" placeholder="секретный ключ" />
+        </div>
+        <div>
+          <label for="source-ids">Источник(и)</label>
+          <input id="source-ids" type="text" placeholder="-100123,-100456" />
+        </div>
+        <div>
+          <label for="target-id">Целевой канал</label>
+          <input id="target-id" type="text" placeholder="-100789" />
+        </div>
+        <div>
+          <label for="date-from">Копировать с даты (необязательно)</label>
+          <input id="date-from" type="date" />
+        </div>
+        <div class="compact-row">
+          <button class="small-btn btn-primary" onclick="start()">Начать миграцию</button>
+          <button class="small-btn btn-secondary" onclick="stop()">Остановить</button>
+        </div>
+      </div>
+    </div>
 
-    <section class="panel logs">
-      <h2>Логи</h2>
-      <div id="log-viewport"></div>
-    </section>
+    <div class="panel inline">
+      <h2 style="margin-bottom: 10px;">Логи</h2>
+      <div class="logs" id="log-viewport"></div>
+    </div>
   </div>
 
   <script>
+    let currentStatus = "Ожидаем phone";
+
+    function updateStatus(text) {
+      currentStatus = text;
+      document.getElementById("auth-status").innerText = `Статус: ${text}`;
+    }
+
     async function start() {
       const payload = {
         api_id: document.getElementById("api-id").value,
         api_hash: document.getElementById("api-hash").value,
         source_ids: document.getElementById("source-ids").value,
         target_id: document.getElementById("target-id").value,
-        start_date: document.getElementById("date-from").value || null
+        start_date: document.getElementById("date-from").value || null,
       };
-      await fetch("/start", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+      const response = await fetch("/start", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Ошибка запуска");
+      }
     }
 
     async function stop() {
       await fetch("/stop", {method: "POST"});
     }
 
-    async function sendAuth(step) {
-      const input = document.getElementById(`auth-${step}`);
+    async function requestCode() {
+      const phone = document.getElementById("auth-phone").value.trim();
+      if (!phone) {
+        return alert("Введите номер телефона.");
+      }
       await fetch("/auth", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({step, value: input.value})
+        body: JSON.stringify({step: "phone", value: phone}),
       });
-      document.getElementById("auth-status").innerText = `Введены данные для ${step}.`;
+      updateStatus("Ожидаем code");
+    }
+
+    async function sendAuth(step) {
+      const elem = document.getElementById(`auth-${step}`);
+      if (!elem.value.trim()) {
+        return alert("Заполните поле.");
+      }
+      await fetch("/auth", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({step, value: elem.value}),
+      });
+      if (step === "code") {
+        updateStatus("Авторизовано");
+      } else if (step === "password") {
+        updateStatus("Авторизовано (2FA)");
+      }
     }
 
     async function logout() {
       await fetch("/logout", {method: "POST"});
-      document.getElementById("auth-status").innerText = "Сессия сброшена.";
+      updateStatus("Ожидаем phone");
     }
 
     async function refreshLogs() {
@@ -90,16 +362,28 @@
       const data = await res.json();
       if (data.logs.length) {
         const viewport = document.getElementById("log-viewport");
-        data.logs.forEach(line => {
+        data.logs.forEach((line) => {
           const div = document.createElement("div");
+          div.className = "line";
           div.innerText = line;
           viewport.appendChild(div);
         });
         viewport.scrollTop = viewport.scrollHeight;
       }
-      setTimeout(refreshLogs, 2000);
     }
+
+    setInterval(refreshLogs, 2000);
     refreshLogs();
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
