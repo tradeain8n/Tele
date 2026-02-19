@@ -1,4 +1,3 @@
-```python
 import datetime
 import json
 import queue
@@ -143,4 +142,5 @@ def logout():
     log("Сессия сброшена. Авторизация требуется заново.")
     return jsonify({"status": "logged_out"})
 ```
+
 
