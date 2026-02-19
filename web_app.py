@@ -1,7 +1,6 @@
-import asyncio
+```python
 import datetime
 import json
-import os
 import queue
 import threading
 from flask import Flask, render_template, request, jsonify
@@ -13,27 +12,40 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 log_queue = queue.Queue()
 logic_instance = None
 logic_thread = None
-session_state = {"authorized": False, "phone_hint": "+<код><номер>"}
+
+session_state = {
+    "authorized": False,
+    "phone": None,
+    "code": None,
+    "password": None,
+    "waiting_for": "phone",  # phone / code / password
+}
 
 
 def log(message: str):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    entry = f"[{timestamp}] {message}"
-    log_queue.put(entry)
+    log_queue.put(f"[{timestamp}] {message}")
 
 
-def threadsafe_auth(dialog_type):
-    """Эмуляция диалога авторизации через Web."""
-    if dialog_type == "phone":
-        session_state["waiting"] = "phone"
-        return None
-    elif dialog_type == "code":
-        session_state["waiting"] = "code"
-        return None
-    elif dialog_type == "password":
-        session_state["waiting"] = "password"
-        return None
-    return None
+def auth_callback(step: str):
+    """
+    Вызывается TelegramLogic для запросов авторизации.
+    Web-интерфейс должен в ответе POST /auth обновлять session_state.
+    """
+    session_state["waiting_for"] = step
+    log(f"Требуется авторизация ({step}).")
+    # Ждём пока веб-интерфейс отправит данные через /auth
+    event = threading.Event()
+    session_state.setdefault("events", {})[step] = event
+    event.wait()
+    return session_state.get(step)
+
+
+def set_auth_data(step: str, value: str):
+    session_state[step] = value
+    event = session_state.get("events", {}).pop(step, None)
+    if event:
+        event.set()
 
 
 @app.route("/")
@@ -42,35 +54,50 @@ def index():
 
 
 @app.route("/logs")
-def logs():
-    messages = []
+def fetch_logs():
+    items = []
     while not log_queue.empty():
-        messages.append(log_queue.get())
-    return jsonify({"logs": messages})
+        items.append(log_queue.get())
+    return jsonify({"logs": items})
 
 
 @app.route("/start", methods=["POST"])
 def start():
     global logic_instance, logic_thread
 
-    data = request.json
-    api_id = data["api_id"]
-    api_hash = data["api_hash"]
-    target_id = int(data["target_id"])
-    source_ids = [int(x.strip()) for x in data["source_ids"].split(",") if x.strip()]
-    date_filter = data.get("start_date")
-    start_date = (
-        datetime.datetime.strptime(date_filter, "%Y-%m-%d")
-        if date_filter
-        else None
-    )
+    payload = request.json
+    api_id = payload.get("api_id")
+    api_hash = payload.get("api_hash")
+    source_ids_text = payload.get("source_ids", "")
+    target_id = payload.get("target_id")
+    start_date = payload.get("start_date")
+
+    if not api_id or not api_hash:
+        return jsonify({"error": "Укажите API ID и API Hash"}), 400
+    if not source_ids_text:
+        return jsonify({"error": "Укажите хотя бы один канал-источник"}), 400
+    try:
+        source_ids = [int(item.strip()) for item in source_ids_text.split(",") if item.strip()]
+    except ValueError:
+        return jsonify({"error": "ID каналов-источников должны быть числами"}), 400
+    try:
+        target_id = int(target_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "ID целевого канала должен быть числом"}), 400
+
+    selected_date = None
+    if start_date:
+        try:
+            selected_date = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": "Неверный формат даты. Используйте yyyy-mm-dd"}), 400
 
     logic_instance = TelegramLogic(
         api_id=api_id,
         api_hash=api_hash,
         log_callback=log,
-        auth_callback=threadsafe_auth,
-        start_date=start_date,
+        auth_callback=auth_callback,
+        start_date=selected_date,
     )
 
     def runner():
@@ -81,6 +108,7 @@ def start():
 
     logic_thread = threading.Thread(target=runner, daemon=True)
     logic_thread.start()
+    log("Запуск миграции...")
     return jsonify({"status": "started"})
 
 
@@ -88,41 +116,30 @@ def start():
 def stop():
     if logic_instance:
         logic_instance.stop()
-        log("Получен запрос на остановку.")
+        log("Остановка миграции по запросу.")
     return jsonify({"status": "stopping"})
 
 
 @app.route("/auth", methods=["POST"])
 def auth_step():
     payload = request.json
-    step = payload["step"]
-    value = payload["value"]
-    if step == "phone":
-        session_state["phone"] = value
-        session_state["authorized"] = False
-        log(f"Введён номер {value}. Ждём код.")
-        return jsonify({"status": "code_required"})
+    step = payload.get("step")
+    value = payload.get("value")
+    if step not in {"phone", "code", "password"}:
+        return jsonify({"error": "Неверный шаг авторизации"}), 400
+    set_auth_data(step, value)
     if step == "code":
-        session_state["code"] = value
         session_state["authorized"] = True
-        log("Код принят, сессия авторизована.")
-        return jsonify({"status": "authorized"})
-    if step == "password":
-        session_state["password"] = value
-        log("Пароль 2FA введён.")
-        return jsonify({"status": "password_saved"})
+    log(f"Получены данные для авторизации ({step}).")
     return jsonify({"status": "ok"})
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
     session_state["authorized"] = False
-    session_state.pop("phone", None)
-    session_state.pop("code", None)
-    session_state.pop("password", None)
+    session_state["phone"] = None
+    session_state["code"] = None
+    session_state["password"] = None
     log("Сессия сброшена. Авторизация требуется заново.")
     return jsonify({"status": "logged_out"})
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+```
