@@ -16,7 +16,8 @@
       <header class="header">
         <div>
           <h1>Telegram Cloner веб</h1>
-          <p id="status-badge" class="status-badge status-warn">Статус: ожидаем действия</p>
+          <p id="status-badge" class="status-badge status-warn">Статус: ожидаем входа</p>
+          <p id="session-hint" class="hint-text">Сессия не сохранена.</p>
         </div>
         <div class="header-actions">
           <button class="primary ghost" onclick="refreshLogs()">Обновить логи</button>
@@ -65,7 +66,7 @@
       <div class="modal-card">
         <h3 id="modal-title">Введите номер телефона</h3>
         <p id="modal-note">
-          Формат: +код страны и номер (например, +380501234567). После отправки придёт SMS.
+          Формат: +код страны + номер (например, +380501234567). После отправки придёт SMS.
         </p>
         <input id="modal-input" type="text" placeholder="+380501234567" autocomplete="tel" />
         <div class="modal-actions">
@@ -74,6 +75,8 @@
         </div>
       </div>
     </div>
+
+    <div id="toast" class="toast">Сессия сохранена. Вы будете автоматически авторизованы.</div>
 
     <script>
       const modalLabels = {
@@ -85,11 +88,27 @@
       const modalNotes = {
         phone: "Номер в международном формате, например +380501234567.",
         code: "Код придёт в Telegram на указанный номер.",
-        password: "Введите пароль двойной авторизации.",
+        password: "Введите пароль двухфакторной защиты.",
       };
 
       let waitingFor = "idle";
       let modalOpenStep = null;
+      let toastTimer = null;
+
+      function showToast(text) {
+        const toast = document.getElementById("toast");
+        toast.innerText = text;
+        toast.classList.add("visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("visible"), 3500);
+      }
+
+      function updateSessionHint(text, ok = false) {
+        const hint = document.getElementById("session-hint");
+        hint.innerText = text;
+        hint.classList.toggle("hint-ok", ok);
+        hint.classList.toggle("hint-warn", !ok);
+      }
 
       function validateMigrationForm(payload) {
         if (!payload.api_id || !/^\d+$/.test(payload.api_id)) {
@@ -137,7 +156,7 @@
           return;
         }
 
-        updateStatus("Запущена миграция. Ждём авторизацию.");
+        updateStatus("Запущена миграция. Ожидаем авторизацию.");
       }
 
       async function stop() {
@@ -197,13 +216,16 @@
           updateStatus("Ожидаем пароль 2FA.");
         } else if (waitingFor === "password") {
           closeModal();
-          updateStatus("Авторизовано.");
+          updateStatus("Авторизация завершена.");
+          showToast("Сессия сохранена, останется авторизованной до выхода.");
+          updateSessionHint("Сессия сохранена.", true);
         }
       }
 
       async function logout() {
         await fetch("/logout", { method: "POST" });
         updateStatus("Ожидаем входа.");
+        updateSessionHint("Сессия не сохранена.", false);
         closeModal();
       }
 
@@ -242,6 +264,7 @@
 
           if (data.authorized) {
             updateStatus(`Авторизовано (${data.current_phone || "номер неизвестен"})`);
+            updateSessionHint("Сессия сохранена.", true);
             closeModal();
           } else if (["phone", "code", "password"].includes(data.waiting_for)) {
             updateStatus(`Ожидаем ${data.waiting_for}`);
