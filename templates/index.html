@@ -1,0 +1,105 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Telegram Cloner Web</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Telegram Cloner Web</h1>
+
+    <section class="panel">
+      <h2>Авторизация</h2>
+      <p class="info">Номер вводите в международном формате, например <strong>+380501234567</strong>.</p>
+      <div class="auth-block">
+        <label>Номер телефона</label>
+        <input id="auth-phone" type="text" placeholder="+380501234567"/>
+        <button onclick="sendAuth('phone')">Отправить номер</button>
+      </div>
+      <div class="auth-block">
+        <label>Код подтверждения</label>
+        <input id="auth-code" type="text" placeholder="12345"/>
+        <button onclick="sendAuth('code')">Ввести код</button>
+      </div>
+      <div class="auth-block">
+        <label>Пароль 2FA (если есть)</label>
+        <input id="auth-password" type="password" placeholder="Пароль 2FA"/>
+        <button onclick="sendAuth('password')">Отправить пароль</button>
+      </div>
+      <button class="logout" onclick="logout()">Сбросить сессию</button>
+      <div id="auth-status">Статус: требуется авторизация.</div>
+    </section>
+
+    <section class="panel">
+      <h2>Настройка</h2>
+      <label>API ID</label>
+      <input id="api-id" type="text"/>
+      <label>API Hash</label>
+      <input id="api-hash" type="password"/>
+      <label>Каналы-источники (через запятую)</label>
+      <input id="source-ids" type="text" placeholder="-100123,-100456"/>
+      <label>Целевой канал</label>
+      <input id="target-id" type="text" placeholder="-100789"/>
+      <label>Копировать с даты</label>
+      <input id="date-from" type="date"/>
+      <button class="start" onclick="start()">Начать миграцию</button>
+      <button class="stop" onclick="stop()">Остановить</button>
+    </section>
+
+    <section class="panel logs">
+      <h2>Логи</h2>
+      <div id="log-viewport"></div>
+    </section>
+  </div>
+
+  <script>
+    async function start() {
+      const payload = {
+        api_id: document.getElementById("api-id").value,
+        api_hash: document.getElementById("api-hash").value,
+        source_ids: document.getElementById("source-ids").value,
+        target_id: document.getElementById("target-id").value,
+        start_date: document.getElementById("date-from").value || null
+      };
+      await fetch("/start", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
+    }
+
+    async function stop() {
+      await fetch("/stop", {method: "POST"});
+    }
+
+    async function sendAuth(step) {
+      const input = document.getElementById(`auth-${step}`);
+      await fetch("/auth", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({step, value: input.value})
+      });
+      document.getElementById("auth-status").innerText = `Введены данные для ${step}.`;
+    }
+
+    async function logout() {
+      await fetch("/logout", {method: "POST"});
+      document.getElementById("auth-status").innerText = "Сессия сброшена.";
+    }
+
+    async function refreshLogs() {
+      const res = await fetch("/logs");
+      const data = await res.json();
+      if (data.logs.length) {
+        const viewport = document.getElementById("log-viewport");
+        data.logs.forEach(line => {
+          const div = document.createElement("div");
+          div.innerText = line;
+          viewport.appendChild(div);
+        });
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+      setTimeout(refreshLogs, 2000);
+    }
+    refreshLogs();
+  </script>
+</body>
+</html>
