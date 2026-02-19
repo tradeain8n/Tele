@@ -1,46 +1,209 @@
-/* static/styles.css */
+:root {
+  --bg: #07070d;
+  --panel: #131526;
+  --panel-strong: #1d1f2c;
+  --border: #252941;
+  --accent: #2ed573;
+  --error: #ff6b6b;
+  --text: #f5f7ff;
+  --muted: #8c93b6;
+  --shadow: 0 20px 45px rgba(5, 8, 20, 0.7);
+  --monospace: "JetBrains Mono", "Fira Code", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-  background: #111;
-  color: #eee;
-  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, rgba(46, 213, 115, 0.08), transparent 45%),
+    #05050a;
+  font-family: "Inter", system-ui, sans-serif;
+  color: var(--text);
 }
-.container {
-  max-width: 960px;
+
+.page {
+  width: min(1100px, 100%);
   margin: 0 auto;
-  padding: 16px;
+  padding: 32px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
 .panel {
-  background: #1b1b1b;
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 16px;
+  background: var(--panel);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
+
+.panel h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.grid {
+  display: grid;
+  gap: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: block;
+}
+
 input {
   width: 100%;
-  padding: 8px;
-  margin-bottom: 10px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  color: #fff;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0d0f1a;
+  color: var(--text);
+  font-size: 14px;
+  transition: border 0.2s ease;
 }
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 button {
-  padding: 10px 20px;
-  margin-right: 10px;
-  border: none;
   cursor: pointer;
-  background: #444;
-  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 600;
+  transition: transform 0.15s ease;
 }
-button.start { background: #179117; }
-button.stop { background: #c11b1b; }
-button.logout { background: #c11b1b; }
+
+button:active {
+  transform: translateY(1px);
+}
+
+.primary {
+  background: linear-gradient(135deg, #2ed573, #1dd15d);
+  color: #051010;
+  box-shadow: 0 12px 25px rgba(46, 213, 115, 0.35);
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-ok {
+  background: rgba(46, 213, 115, 0.12);
+  border-color: rgba(46, 213, 115, 0.4);
+}
+
+.status-warn {
+  background: rgba(255, 238, 130, 0.12);
+  border-color: rgba(255, 238, 130, 0.4);
+  color: #fff6c2;
+}
+
+.logs-panel {
+  padding-bottom: 16px;
+}
+
 .logs {
-  max-height: 350px;
+  background: #0b0c12;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  min-height: 260px;
+  max-height: 420px;
   overflow-y: auto;
-  background: #0a0a0a;
+  padding: 12px;
+  font-family: var(--monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #73f0b3;
 }
-.logs div {
-  font-family: monospace;
-  color: #4fd24f;
-  padding: 2px 0;
+
+.log-line {
+  padding: 4px 0;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 18, 0.8);
+  z-index: 999;
+}
+
+.modal.visible {
+  display: flex;
+}
+
+.modal-card {
+  background: var(--panel-strong);
+  border-radius: 20px;
+  padding: 28px;
+  width: min(400px, 95%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.modal-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.modal-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.modal-card input {
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
