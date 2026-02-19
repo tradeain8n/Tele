@@ -1,4 +1,5 @@
 import datetime
+import os
 import queue
 import threading
 from functools import wraps
@@ -9,6 +10,9 @@ try:
     from telegram_logic import TelegramLogic
 except Exception as exc:
     raise RuntimeError(f"Не удалось импортировать TelegramLogic: {exc}")
+
+SESSION_BASE = "cloner_session"
+SESSION_FILES = [f"{SESSION_BASE}.session", f"{SESSION_BASE}.session-journal"]
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -58,6 +62,14 @@ def set_auth_data(step: str, value: str):
     event = session_state["events"].pop(step, None)
     if event:
         event.set()
+
+
+def cleanup_session_files():
+    for path in SESSION_FILES:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
 
 
 def start_logic(api_id, api_hash, sources, target_id, start_date):
@@ -177,10 +189,13 @@ def auth_step():
 @app.route("/logout", methods=["POST"])
 @safe_response
 def logout():
+    if logic_instance and logic_instance.is_running:
+        logic_instance.stop()
     session_state["authorized"] = False
     session_state["current_phone"] = None
     session_state["provided"].clear()
     session_state["events"].clear()
     session_state["auth_step"] = "idle"
+    cleanup_session_files()
     log("Сессия сброшена.")
     return jsonify({"status": "logged_out"})
