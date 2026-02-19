@@ -141,6 +141,6 @@ def logout():
     session_state["password"] = None
     log("Сессия сброшена. Авторизация требуется заново.")
     return jsonify({"status": "logged_out"})
-```
+
 
 
