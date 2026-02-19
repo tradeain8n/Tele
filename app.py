@@ -18,7 +18,7 @@ logic_instance = None
 session_state = {
     "authorized": False,
     "current_phone": None,
-    "auth_step": "idle",  # idle / phone / code / password
+    "auth_step": "idle",
     "provided": {},
     "events": {},
 }
