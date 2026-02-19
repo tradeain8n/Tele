@@ -14,7 +14,6 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 
 log_queue = queue.Queue()
 logic_instance = None
-logic_thread = None
 
 session_state = {
     "authorized": False,
@@ -167,7 +166,7 @@ def auth_step():
     if step == "phone":
         session_state["current_phone"] = value
         session_state["authorized"] = False
-    elif step == "code":
+    elif step == "password":
         session_state["authorized"] = True
 
     set_auth_data(step, value)
