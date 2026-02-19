@@ -1,0 +1,46 @@
+/* static/styles.css */
+body {
+  background: #111;
+  color: #eee;
+  font-family: 'Segoe UI', sans-serif;
+}
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.panel {
+  background: #1b1b1b;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+input {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: #fff;
+}
+button {
+  padding: 10px 20px;
+  margin-right: 10px;
+  border: none;
+  cursor: pointer;
+  background: #444;
+  color: #fff;
+}
+button.start { background: #179117; }
+button.stop { background: #c11b1b; }
+button.logout { background: #c11b1b; }
+.logs {
+  max-height: 350px;
+  overflow-y: auto;
+  background: #0a0a0a;
+}
+.logs div {
+  font-family: monospace;
+  color: #4fd24f;
+  padding: 2px 0;
+}
