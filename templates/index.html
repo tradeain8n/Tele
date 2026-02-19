@@ -1,389 +1,204 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <title>Telegram Cloner Web</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-    rel="stylesheet"
-  />
-  <style>
-    :root {
-      --bg: #0c0d12;
-      --panel: #141722;
-      --panel-alt: #1f222f;
-      --border: #2c2f3d;
-      --accent: #2ed573;
-      --accent-soft: rgba(46, 213, 115, 0.15);
-      --text: #f4f6fb;
-      --text-muted: #9ba2c7;
-      --danger: #ff6b6b;
-      --shadow: 0 10px 40px rgba(5, 8, 20, 0.7);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #05060a, #101226 60%);
-      font-family: "Inter", system-ui, sans-serif;
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px;
-    }
-
-    .app {
-      width: min(1000px, 100%);
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 28px;
-      letter-spacing: -0.02em;
-    }
-
-    .top-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .panel {
-      background: var(--panel);
-      border-radius: 18px;
-      padding: 22px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-    }
-
-    .panel h2 {
-      margin: 0 0 12px;
-      font-size: 18px;
-      color: var(--text);
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-
-    label {
-      display: block;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 4px;
-      color: var(--text-muted);
-    }
-
-    input,
-    button,
-    select {
-      font-family: inherit;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #151823;
-      color: var(--text);
-      font-size: 14px;
-      transition: border 0.2s ease;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .small-btn {
-      border-radius: 10px;
-      border: none;
-      padding: 9px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .small-btn:active {
-      transform: translateY(1px);
-    }
-
-    .btn-group {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #051010;
-      box-shadow: 0 8px 20px rgba(46, 213, 115, 0.35);
-      border: none;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      border: none;
-      color: #120000;
-      box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4);
-    }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 13px;
-      background: var(--panel-alt);
-      border: 1px solid var(--border);
-    }
-
-    .logs {
-      min-height: 260px;
-      max-height: 420px;
-      overflow-y: auto;
-      padding: 12px;
-      background: #080a11;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      font-family: "JetBrains Mono", "Fira Code", monospace;
-      font-size: 13px;
-      line-height: 1.4;
-      color: #7cffa0;
-    }
-
-    .logs .line:nth-child(odd) {
-      color: #94a5ff;
-    }
-
-    .inline-notes {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    .compact-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .panel.inline {
-      padding: 18px;
-    }
-
-    .links-row {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    @media (max-width: 600px) {
-      .top-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <div class="top-row">
-      <div>
-        <h1>Telegram Cloner веб</h1>
-        <div class="status-badge" id="auth-status">Статус: ожидаем phone</div>
-      </div>
-      <div class="links-row">
-        <button class="small-btn btn-secondary" onclick="refreshLogs()">Обновить логи</button>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>Авторизация</h2>
-      <div class="inline-notes">
-        Введите номер в формате <strong>+<код страны>номер</strong> (например, +380501234567).
-      </div>
-      <div class="grid-2" style="margin-top: 12px;">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Telegram Cloner Web</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
         <div>
-          <label for="auth-phone">Телефон</label>
-          <input id="auth-phone" type="text" placeholder="+380501234567" autocomplete="tel" />
+          <h1>Telegram Cloner веб</h1>
+          <p id="status-badge" class="status-badge">Статус: Ожидаем входа</p>
         </div>
-        <div>
-          <label for="auth-code">Код</label>
-          <input id="auth-code" type="text" placeholder="12345" autocomplete="one-time-code" />
-        </div>
-        <div>
-          <label for="auth-password">Пароль 2FA</label>
-          <input id="auth-password" type="password" placeholder="опционально" autocomplete="current-password" />
-        </div>
-        <div>
-          <label>&nbsp;</label>
-          <div class="btn-group">
-            <button class="small-btn btn-primary" onclick="requestCode()">Запросить код</button>
-            <button class="small-btn btn-primary" onclick="sendAuth('code')">Ввести код</button>
-            <button class="small-btn btn-secondary" onclick="sendAuth('password')">Отправить пароль</button>
+        <button class="primary ghost" onclick="refreshLogs()">Обновить логи</button>
+      </header>
+
+      <section class="panel">
+        <h2>Настройки миграции</h2>
+        <div class="grid">
+          <div>
+            <label>API ID</label>
+            <input id="api-id" type="text" placeholder="1234567" />
+          </div>
+          <div>
+            <label>API Hash</label>
+            <input id="api-hash" type="password" placeholder="секретный ключ" />
+          </div>
+          <div>
+            <label>Каналы-источники</label>
+            <input id="source-ids" type="text" placeholder="-100123,-100456" />
+          </div>
+          <div>
+            <label>Целевой канал</label>
+            <input id="target-id" type="text" placeholder="-100789" />
+          </div>
+          <div>
+            <label>Копировать с</label>
+            <input id="date-from" type="date" />
+          </div>
+          <div class="actions">
+            <button class="primary" onclick="start()">Начать миграцию</button>
+            <button class="ghost" onclick="stop()">Остановить</button>
           </div>
         </div>
-        <div>
-          <label>&nbsp;</label>
-          <button class="small-btn btn-danger" onclick="logout()">Сбросить сессию</button>
+      </section>
+
+      <section class="panel logs-panel">
+        <h2>Логи</h2>
+        <div class="logs" id="log-viewport"></div>
+      </section>
+    </div>
+
+    <div class="modal" id="auth-modal">
+      <div class="modal-card">
+        <h3 id="modal-title">Введите номер телефона</h3>
+        <p id="modal-note">Формат: +код страны и номер (например, +380501234567)</p>
+        <input id="modal-input" type="text" placeholder="+380..." />
+        <div class="modal-actions">
+          <button class="primary" onclick="submitAuthStep()">Отправить</button>
+          <button class="ghost" onclick="closeModal()">Отменить</button>
         </div>
       </div>
     </div>
 
-    <div class="panel">
-      <h2>Настройки миграции</h2>
-      <div class="grid-2">
-        <div>
-          <label for="api-id">API ID</label>
-          <input id="api-id" type="text" placeholder="1234567" />
-        </div>
-        <div>
-          <label for="api-hash">API Hash</label>
-          <input id="api-hash" type="password" placeholder="секретный ключ" />
-        </div>
-        <div>
-          <label for="source-ids">Источник(и)</label>
-          <input id="source-ids" type="text" placeholder="-100123,-100456" />
-        </div>
-        <div>
-          <label for="target-id">Целевой канал</label>
-          <input id="target-id" type="text" placeholder="-100789" />
-        </div>
-        <div>
-          <label for="date-from">Копировать с даты (необязательно)</label>
-          <input id="date-from" type="date" />
-        </div>
-        <div class="compact-row">
-          <button class="small-btn btn-primary" onclick="start()">Начать миграцию</button>
-          <button class="small-btn btn-secondary" onclick="stop()">Остановить</button>
-        </div>
-      </div>
-    </div>
+    <script>
+      let waitingFor = "idle";
 
-    <div class="panel inline">
-      <h2 style="margin-bottom: 10px;">Логи</h2>
-      <div class="logs" id="log-viewport"></div>
-    </div>
-  </div>
-
-  <script>
-    let currentStatus = "Ожидаем phone";
-
-    function updateStatus(text) {
-      currentStatus = text;
-      document.getElementById("auth-status").innerText = `Статус: ${text}`;
-    }
-
-    async function start() {
-      const payload = {
-        api_id: document.getElementById("api-id").value,
-        api_hash: document.getElementById("api-hash").value,
-        source_ids: document.getElementById("source-ids").value,
-        target_id: document.getElementById("target-id").value,
-        start_date: document.getElementById("date-from").value || null,
-      };
-      const response = await fetch("/start", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        alert(error.error || "Ошибка запуска");
-      }
-    }
-
-    async function stop() {
-      await fetch("/stop", {method: "POST"});
-    }
-
-    async function requestCode() {
-      const phone = document.getElementById("auth-phone").value.trim();
-      if (!phone) {
-        return alert("Введите номер телефона.");
-      }
-      await fetch("/auth", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({step: "phone", value: phone}),
-      });
-      updateStatus("Ожидаем code");
-    }
-
-    async function sendAuth(step) {
-      const elem = document.getElementById(`auth-${step}`);
-      if (!elem.value.trim()) {
-        return alert("Заполните поле.");
-      }
-      await fetch("/auth", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({step, value: elem.value}),
-      });
-      if (step === "code") {
-        updateStatus("Авторизовано");
-      } else if (step === "password") {
-        updateStatus("Авторизовано (2FA)");
-      }
-    }
-
-    async function logout() {
-      await fetch("/logout", {method: "POST"});
-      updateStatus("Ожидаем phone");
-    }
-
-    async function refreshLogs() {
-      const res = await fetch("/logs");
-      const data = await res.json();
-      if (data.logs.length) {
-        const viewport = document.getElementById("log-viewport");
-        data.logs.forEach((line) => {
-          const div = document.createElement("div");
-          div.className = "line";
-          div.innerText = line;
-          viewport.appendChild(div);
+      async function start() {
+        const payload = {
+          api_id: document.getElementById("api-id").value.trim(),
+          api_hash: document.getElementById("api-hash").value.trim(),
+          source_ids: document.getElementById("source-ids").value.trim(),
+          target_id: document.getElementById("target-id").value.trim(),
+          start_date: document.getElementById("date-from").value || null,
+        };
+        const res = await fetch("/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-        viewport.scrollTop = viewport.scrollHeight;
+
+        if (!res.ok) {
+          const error = await res.json();
+          alert(error.error || "Ошибка запуска");
+          return;
+        }
+        updateStatus("Запущена миграция. Ожидаем шаг авторизации.");
       }
-    }
 
-    setInterval(refreshLogs, 2000);
-    refreshLogs();
-  </script>
-</body>
+      async function stop() {
+        await fetch("/stop", { method: "POST" });
+        updateStatus("Процесс остановлен.");
+      }
+
+      function showModal(step) {
+        waitingFor = step;
+        const labels = {
+          phone: "Введите номер телефона",
+          code: "Введите код из SMS",
+          password: "Введите пароль 2FA",
+        };
+        const notes = {
+          phone: "Номер в международном формате, например +380501234567",
+          code: "Код высылается на привязанный Telegram",
+          password: "Пароль нужно знать заранее",
+        };
+        document.getElementById("modal-title").innerText = labels[step];
+        document.getElementById("modal-note").innerText = notes[step];
+        document.getElementById("modal-input").value = "";
+        document.getElementById("auth-modal").classList.add("visible");
+      }
+
+      function closeModal() {
+        document.getElementById("auth-modal").removeAttribute("class");
+      }
+
+      async function submitAuthStep() {
+        const value = document.getElementById("modal-input").value.trim();
+        if (!value) {
+          alert("Заполните поле.");
+          return;
+        }
+
+        const res = await fetch("/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ step: waitingFor, value }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          alert(error.error || "Ошибка авторизации");
+          return;
+        }
+
+        closeModal();
+        if (waitingFor === "phone") {
+          showModal("code");
+          updateStatus("Ожидаем код (code).");
+        } else if (waitingFor === "code") {
+          updateStatus("Авторизовано. Ожидаем 2FA (если требуется).");
+        } else if (waitingFor === "password") {
+          updateStatus("Авторизовано (2FA).");
+        }
+      }
+
+      async function logout() {
+        await fetch("/logout", { method: "POST" });
+        updateStatus("Ожидаем входа");
+      }
+
+      async function refreshLogs() {
+        try {
+          const res = await fetch("/logs");
+          const data = await res.json();
+          if (data.logs.length) {
+            const viewport = document.getElementById("log-viewport");
+            data.logs.forEach((line) => {
+              const div = document.createElement("div");
+              div.className = "log-line";
+              div.innerText = line;
+              viewport.appendChild(div);
+            });
+            viewport.scrollTop = viewport.scrollHeight;
+          }
+        } catch (error) {
+          console.error("Не удалось обновить логи", error);
+        }
+      }
+
+      async function pollStatus() {
+        try {
+          const res = await fetch("/status");
+          const data = await res.json();
+          const badge = document.getElementById("status-badge");
+          if (data.authorized) {
+            badge.innerText = `Авторизовано: ${data.current_phone || "неизвестно"}`;
+            badge.classList.add("status-ok");
+            badge.classList.remove("status-warn");
+          } else {
+            badge.innerText = `Статус: ожидаем ${data.waiting_for}`;
+            badge.classList.add("status-warn");
+            badge.classList.remove("status-ok");
+            if (["phone", "code", "password"].includes(data.waiting_for)) {
+              showModal(data.waiting_for);
+            }
+          }
+        } catch (error) {
+          console.error("Ошибка статуса", error);
+        }
+      }
+
+      setInterval(pollStatus, 2000);
+      setInterval(refreshLogs, 2000);
+      pollStatus();
+      refreshLogs();
+    </script>
+  </body>
 </html>
-
-
-
-
-
-
-
-
-
-
