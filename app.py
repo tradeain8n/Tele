@@ -17,7 +17,7 @@ session_state = {
     "phone": None,
     "code": None,
     "password": None,
-    "waiting_for": "phone",  # phone / code / password
+    "waiting_for": "phone",
 }
 
 
@@ -27,13 +27,8 @@ def log(message: str):
 
 
 def auth_callback(step: str):
-    """
-    Вызывается TelegramLogic для запросов авторизации.
-    Web-интерфейс должен в ответе POST /auth обновлять session_state.
-    """
     session_state["waiting_for"] = step
     log(f"Требуется авторизация ({step}).")
-    # Ждём пока веб-интерфейс отправит данные через /auth
     event = threading.Event()
     session_state.setdefault("events", {})[step] = event
     event.wait()
@@ -141,6 +136,3 @@ def logout():
     session_state["password"] = None
     log("Сессия сброшена. Авторизация требуется заново.")
     return jsonify({"status": "logged_out"})
-
-
-
