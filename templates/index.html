@@ -16,7 +16,7 @@
       <header class="header">
         <div>
           <h1>Telegram Cloner веб</h1>
-          <p id="status-badge" class="status-badge status-warn">Статус: ожидаем входа</p>
+          <p id="status-badge" class="status-badge status-warn">Статус: ожидаем действия</p>
         </div>
         <div class="header-actions">
           <button class="primary ghost" onclick="refreshLogs()">Обновить логи</button>
@@ -33,18 +33,18 @@
           </div>
           <div>
             <label>API Hash</label>
-            <input id="api-hash" type="password" placeholder="секретный ключ" />
+            <input id="api-hash" type="password" placeholder="***************" />
           </div>
           <div>
             <label>Каналы-источники</label>
-            <input id="source-ids" type="text" placeholder="-100123,-100456" />
+            <input id="source-ids" type="text" placeholder="-100111,-100222" />
           </div>
           <div>
             <label>Целевой канал</label>
-            <input id="target-id" type="text" placeholder="-100789" />
+            <input id="target-id" type="text" placeholder="-100333" />
           </div>
           <div>
-            <label>Копировать с письма</label>
+            <label>Копировать с даты (необязательно)</label>
             <input id="date-from" type="date" />
           </div>
           <div class="actions">
@@ -84,8 +84,8 @@
 
       const modalNotes = {
         phone: "Номер в международном формате, например +380501234567.",
-        code: "Код приходит в Telegram на указанный номер.",
-        password: "Введите пароль двухфакторной защиты.",
+        code: "Код придёт в Telegram на указанный номер.",
+        password: "Введите пароль двойной авторизации.",
       };
 
       let waitingFor = "idle";
@@ -137,7 +137,7 @@
           return;
         }
 
-        updateStatus("Запущена миграция. Ожидаем шаг авторизации.");
+        updateStatus("Запущена миграция. Ждём авторизацию.");
       }
 
       async function stop() {
@@ -171,7 +171,7 @@
           return;
         }
         if (waitingFor === "phone" && !/^\+\d+$/.test(value)) {
-          alert("Вводите номер в формате +380501234567.");
+          alert("Введите номер в формате +380501234567.");
           return;
         }
 
@@ -190,7 +190,7 @@
         if (waitingFor === "phone") {
           closeModal();
           showModal("code");
-          updateStatus("Ожидаем SMS-код.");
+          updateStatus("Ожидаем код из SMS.");
         } else if (waitingFor === "code") {
           closeModal();
           showModal("password");
