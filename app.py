@@ -14,33 +14,27 @@ logic_thread = None
 
 session_state = {
     "authorized": False,
-    "phone": None,
-    "code": None,
-    "password": None,
+    "provided": {},
+    "events": {},
     "waiting_for": "phone",
 }
-
-
-def log(message: str):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    log_queue.put(f"[{timestamp}] {message}")
-
 
 def auth_callback(step: str):
     session_state["waiting_for"] = step
     log(f"Требуется авторизация ({step}).")
+    provided = session_state["provided"].pop(step, None)
+    if provided is not None:
+        return provided
     event = threading.Event()
-    session_state.setdefault("events", {})[step] = event
+    session_state["events"][step] = event
     event.wait()
-    return session_state.get(step)
-
+    return session_state["provided"].pop(step, None)
 
 def set_auth_data(step: str, value: str):
-    session_state[step] = value
-    event = session_state.get("events", {}).pop(step, None)
+    session_state["provided"][step] = value
+    event = session_state["events"].pop(step, None)
     if event:
         event.set()
-
 
 @app.route("/")
 def index():
@@ -136,3 +130,4 @@ def logout():
     session_state["password"] = None
     log("Сессия сброшена. Авторизация требуется заново.")
     return jsonify({"status": "logged_out"})
+
