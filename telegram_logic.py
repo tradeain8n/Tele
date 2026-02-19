@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import json
 import os
-from typing import List, Optional
+from typing import List
 
 from telethon import TelegramClient, events
 from telethon.errors.rpcerrorlist import (
@@ -10,7 +10,7 @@ from telethon.errors.rpcerrorlist import (
     PhoneCodeInvalidError,
     SessionPasswordNeededError,
 )
-from telethon.tl.types import MessageService, MessageMediaPhoto, MessageMediaDocument
+from telethon.tl.types import MessageService
 
 
 class TelegramLogic:
@@ -83,29 +83,33 @@ class TelegramLogic:
     async def _send_message_copy(self, client, message, target_id):
         if not message:
             return
+        caption = message.message or message.text or ""
         try:
             if message.media:
-                file_path = await message.download_media(file=bytes)
-                caption = message.text or message.message
+                file_bytes = await message.download_media(file=bytes)
                 await client.send_file(
                     target_id,
-                    file=file_path,
-                    caption=caption,
+                    file=file_bytes,
+                    caption=caption or None,
                     link_preview=False,
-                    voice_note=message.voice_note if hasattr(message, "voice_note") else None,
+                    force_document=bool(getattr(message, "media", None)),
                 )
             else:
                 await client.send_message(
                     target_id,
-                    message.text or message.message,
+                    caption,
                     link_preview=False,
                 )
         except Exception as exc:
-            # Fallback: обычное forward (без as_copy, без send_file)
+            # fallback на обычную пересылку
             try:
-                await client.forward_messages(entity=target_id, messages=message, from_peer=message.chat_id)
-            except Exception as inner:
-                self.log(f"Невозможно переслать сообщение {message.id}: {inner}")
+                await client.forward_messages(
+                    entity=target_id,
+                    messages=message,
+                    from_peer=message.chat_id,
+                )
+            except Exception as fallback_exc:
+                self.log(f"Невозможно переслать {message.id}: {fallback_exc}")
                 raise exc
 
     async def _migrate_source(self, client, source_id: int, target_id: int):
@@ -152,7 +156,7 @@ class TelegramLogic:
             try:
                 await self._send_message_copy(client, msg, target_id)
                 self._update_progress(event.chat_id, msg.id)
-                self.log(f"Новый пост {msg.id} с {event.chat_id} скопирован.")
+                self.log(f"Новый пост {msg.id} с {event.chat_id} копирован.")
             except FloodWaitError as exc:
                 self.log(f"FloodWait (новый пост): {exc.seconds}s.")
             except Exception as exc:
