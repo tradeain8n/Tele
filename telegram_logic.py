@@ -2,6 +2,8 @@ import asyncio
 import datetime
 import json
 import os
+from typing import List
+
 from telethon import TelegramClient, events
 from telethon.errors.rpcerrorlist import (
     FloodWaitError,
@@ -59,16 +61,17 @@ class TelegramLogic:
 
         self.log("Требуется авторизация...")
         phone = await client.loop.run_in_executor(None, self.auth_callback, "phone")
-        if phone:
-            await client.send_code_request(phone)
-        code = await client.loop.run_in_executor(None, self.auth_callback, "code")
-        if code:
-            await client.sign_in(phone=phone, code=code)
-        else:
-            raise Exception("Код не введён.")
+        if not phone:
+            raise Exception("Авторизация отменена (телефон).")
+        await client.send_code_request(phone)
+
         try:
+            code = await client.loop.run_in_executor(None, self.auth_callback, "code")
+            if not code:
+                raise Exception("Авторизация отменена (код).")
             await client.sign_in(phone=phone, code=code)
         except SessionPasswordNeededError:
+            self.log("Требуется пароль 2FA.")
             password = await client.loop.run_in_executor(None, self.auth_callback, "password")
             if not password:
                 raise Exception("Пароль 2FA не введён.")
@@ -77,14 +80,24 @@ class TelegramLogic:
             raise Exception(f"Неверный код: {exc}")
         self.log("Авторизация прошла успешно.")
 
-    async def _migrate_source(self, client, source_id, target_id):
+    async def _forward_message(self, client, message, target_id):
+        await client.forward_messages(
+            entity=target_id,
+            messages=message,
+            from_peer=message.chat_id,
+            as_copy=True,
+        )
+
+    async def _migrate_source(self, client, source_id: int, target_id: int):
+        source_key = str(source_id)
         self.log(f"Начинаем миграцию из {source_id}.")
         iterator_kwargs = {"reverse": True}
+
         if self.start_date:
             iterator_kwargs["offset_date"] = self.start_date
             self.log(f"Фильтр: с {self.start_date.strftime('%d.%m.%Y')}.")
         else:
-            last_id = self.progress.get(str(source_id), 0)
+            last_id = self.progress.get(source_key, 0)
             iterator_kwargs["offset_id"] = last_id
             self.log(f"Продолжаем после ID: {last_id}.")
 
@@ -92,16 +105,11 @@ class TelegramLogic:
             if not self.is_running:
                 break
             if isinstance(message, MessageService):
-                self._update_progress(source_id, message.id)
+                self._update_progress(source_key, message.id)
                 continue
             try:
-                await client.forward_messages(
-                    entity=target_id,
-                    messages=message,
-                    from_peer=source_id,
-                    as_copy=True,
-                )
-                self._update_progress(source_id, message.id)
+                await self._forward_message(client, message, target_id)
+                self._update_progress(source_key, message.id)
                 self.log(f"Копия {message.id} из {source_id} отправлена.")
                 await asyncio.sleep(2)
             except FloodWaitError as exc:
@@ -109,10 +117,10 @@ class TelegramLogic:
                 await asyncio.sleep(exc.seconds)
             except Exception as exc:
                 self.log(f"Ошибка при копировании {message.id}: {exc}")
-                self._update_progress(source_id, message.id)
+                self._update_progress(source_key, message.id)
                 await asyncio.sleep(5)
 
-    async def _monitor(self, client, target_id, source_ids):
+    async def _monitor(self, client, target_id: int, source_ids: List[int]):
         self.log("Отслеживание новых постов запущено.")
         async def handler(event):
             if not self.is_running:
