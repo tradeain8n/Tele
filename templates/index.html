@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -95,6 +96,14 @@
       toast.classList.add("visible");
       clearTimeout(toastTimeout);
       toastTimeout = setTimeout(() => toast.classList.remove("visible"), 3000);
+    }
+
+    function maskPhone(full) {
+      if (!full) return "номер неизвестен";
+      const clean = full.replace(/\s+/g, "");
+      if (clean.length <= 6) return clean;
+      const visible = clean.slice(0, 5);
+      return `${visible}${"*".repeat(clean.length - 5)}`;
     }
 
     function updateStatus(text, ok = false) {
@@ -234,7 +243,8 @@
         const data = await res.json();
         document.getElementById("logout-btn").style.display = data.authorized ? "inline-flex" : "none";
         if (data.authorized) {
-          updateStatus(`Авторизовано (${data.current_phone || "номер неизвестен"})`, true);
+          const masked = maskPhone(data.current_phone);
+          updateStatus(`Авторизовано (${masked})`, true);
           updateSessionHint("Сессия сохранена до выхода.", true);
           closeModal();
         } else if (["phone", "code", "password"].includes(data.waiting_for)) {
@@ -255,3 +265,4 @@
   </script>
 </body>
 </html>
+```
