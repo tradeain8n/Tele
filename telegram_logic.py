@@ -85,13 +85,6 @@ class TelegramLogic:
             raise Exception(f"Неверный код: {exc}")
         self.log("Авторизация прошла успешно.")
 
-    def _split_text(self, text: str) -> List[str]:
-        chunks = []
-        while text:
-            chunks.append(text[:TEXT_LIMIT])
-            text = text[TEXT_LIMIT:]
-        return chunks
-
     def _trim_caption(self, text: Optional[str]):
         if not text:
             return None, None
@@ -100,28 +93,18 @@ class TelegramLogic:
         return text[:CAPTION_LIMIT], text[CAPTION_LIMIT:]
 
     async def _send_text(self, client, target_id, message):
-        if not message.message:
-            return
-        chunks = self._split_text(message.message)
-        if not chunks:
+        text = message.message
+        if not text:
             return
 
-        # сохраняем entities только для первого чанка
+        # Если текст превышает лимит, Telegram всё равно примет его целиком, а мы сохраняем entities.
         await client.send_message(
             target_id,
-            chunks[0],
+            text,
             formatting_entities=message.entities,
             link_preview=isinstance(message.media, MessageMediaWebPage),
             silent=message.silent,
         )
-
-        for chunk in chunks[1:]:
-            await client.send_message(
-                target_id,
-                chunk,
-                link_preview=False,
-                silent=message.silent,
-            )
 
     async def _send_media(self, client, target_id, message):
         file_path = await message.download_media(file=self.TEMP_DIR)
@@ -151,14 +134,12 @@ class TelegramLogic:
             return
 
         if caption_rest:
-            rest_chunks = self._split_text(caption_rest)
-            for chunk in rest_chunks:
-                await client.send_message(
-                    target_id,
-                    chunk,
-                    link_preview=False,
-                    silent=message.silent,
-                )
+            await client.send_message(
+                target_id,
+                caption_rest,
+                link_preview=False,
+                silent=message.silent,
+            )
 
         if file_path and os.path.exists(file_path):
             try:
@@ -182,7 +163,6 @@ class TelegramLogic:
                 files.append(path)
         if not files:
             return
-
         caption_msg = next((msg for msg in messages if msg.message), None)
         caption = caption_msg.message if caption_msg else None
         caption_trimmed, caption_rest = self._trim_caption(caption)
@@ -206,14 +186,12 @@ class TelegramLogic:
             )
 
         if caption_rest and caption_msg:
-            rest_chunks = self._split_text(caption_rest)
-            for chunk in rest_chunks:
-                await client.send_message(
-                    target_id,
-                    chunk,
-                    link_preview=False,
-                    silent=caption_msg.silent,
-                )
+            await client.send_message(
+                target_id,
+                caption_rest,
+                link_preview=False,
+                silent=caption_msg.silent,
+            )
 
         for path in files:
             if path and os.path.exists(path):
@@ -290,7 +268,7 @@ class TelegramLogic:
                 await self._copy_message(client, target_id, message)
                 self._update_progress(str(event.chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait при новом посте: {flood_exc.seconds}s.")
+                self.log(f"FloodWait при новом посте: {flood_wait.seconds}s.")
             except Exception as exc:
                 self.log(f"Ошибка нового поста {message.id}: {exc}")
 
