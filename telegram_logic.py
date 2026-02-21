@@ -105,6 +105,7 @@ class TelegramLogic:
         chunks = self._split_text(message.message)
         if not chunks:
             return
+
         await client.send_message(
             target_id,
             chunks[0],
@@ -276,15 +277,13 @@ class TelegramLogic:
             if not self.is_running:
                 return
             message = event.message
-            if isinstance(message, MessageService):
-                return
-            if message.grouped_id:
+            if isinstance(message, MessageService) or message.grouped_id:
                 return
             try:
                 await self._copy_message(client, target_id, message)
                 self._update_progress(str(event.chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait при новом посте: {flood_exc.seconds}s.")
+                self.log(f"FloodWait при новом посте: {flood_wait.seconds}s.")
             except Exception as exc:
                 self.log(f"Ошибка нового поста {message.id}: {exc}")
 
