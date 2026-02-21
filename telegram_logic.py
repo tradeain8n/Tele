@@ -106,6 +106,7 @@ class TelegramLogic:
         if not chunks:
             return
 
+        # сохраняем entities только для первого чанка
         await client.send_message(
             target_id,
             chunks[0],
@@ -113,6 +114,7 @@ class TelegramLogic:
             link_preview=isinstance(message.media, MessageMediaWebPage),
             silent=message.silent,
         )
+
         for chunk in chunks[1:]:
             await client.send_message(
                 target_id,
@@ -125,6 +127,7 @@ class TelegramLogic:
         file_path = await message.download_media(file=self.TEMP_DIR)
         caption = message.message or None
         caption_trimmed, caption_rest = self._trim_caption(caption)
+
         try:
             await client.send_file(
                 target_id,
@@ -179,9 +182,11 @@ class TelegramLogic:
                 files.append(path)
         if not files:
             return
+
         caption_msg = next((msg for msg in messages if msg.message), None)
         caption = caption_msg.message if caption_msg else None
         caption_trimmed, caption_rest = self._trim_caption(caption)
+
         try:
             await client.send_file(
                 target_id,
@@ -199,6 +204,7 @@ class TelegramLogic:
                 messages=[msg.id for msg in messages],
                 from_peer=messages[-1].chat_id,
             )
+
         if caption_rest and caption_msg:
             rest_chunks = self._split_text(caption_rest)
             for chunk in rest_chunks:
@@ -208,6 +214,7 @@ class TelegramLogic:
                     link_preview=False,
                     silent=caption_msg.silent,
                 )
+
         for path in files:
             if path and os.path.exists(path):
                 try:
@@ -283,7 +290,7 @@ class TelegramLogic:
                 await self._copy_message(client, target_id, message)
                 self._update_progress(str(event.chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait при новом посте: {flood_wait.seconds}s.")
+                self.log(f"FloodWait при новом посте: {flood_exc.seconds}s.")
             except Exception as exc:
                 self.log(f"Ошибка нового поста {message.id}: {exc}")
 
