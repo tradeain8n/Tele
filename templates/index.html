@@ -1,286 +1,257 @@
 <!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Telegram Cloner Web</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <div class="page">
-      <header class="header">
+<head>
+  <meta charset="UTF-8" />
+  <title>Telegram Cloner Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div>
+        <h1>Telegram Cloner веб</h1>
+        <p id="status-badge" class="status-badge status-warn">Статус: ожидаем входа</p>
+        <p id="session-hint" class="hint-text">Сессия не сохранена.</p>
+      </div>
+      <div class="header-actions">
+        <button class="ghost" onclick="refreshLogs()">Обновить логи</button>
+        <button class="ghost" id="logout-btn" onclick="logout()">Выход</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>Настройки миграции</h2>
+      <div class="grid">
         <div>
-          <h1>Telegram Cloner веб</h1>
-          <p id="status-badge" class="status-badge status-warn">Статус: ожидаем входа</p>
-          <p id="session-hint" class="hint-text">Сессия не сохранена.</p>
+          <label>API ID</label>
+          <input id="api-id" type="text" placeholder="1234567" />
         </div>
-        <div class="header-actions">
-          <button class="primary ghost" onclick="refreshLogs()">Обновить логи</button>
-          <button class="primary ghost" id="logout-btn" onclick="logout()">Выход</button>
+        <div>
+          <label>API Hash</label>
+          <input id="api-hash" type="password" placeholder="секретный ключ" />
         </div>
-      </header>
-
-      <section class="panel">
-        <h2>Настройки миграции</h2>
-        <div class="grid">
-          <div>
-            <label>API ID</label>
-            <input id="api-id" type="text" placeholder="1234567" />
-          </div>
-          <div>
-            <label>API Hash</label>
-            <input id="api-hash" type="password" placeholder="***************" />
-          </div>
-          <div>
-            <label>Каналы-источники</label>
-            <input id="source-ids" type="text" placeholder="-100111,-100222" />
-          </div>
-          <div>
-            <label>Целевой канал</label>
-            <input id="target-id" type="text" placeholder="-100333" />
-          </div>
-          <div>
-            <label>Копировать с даты (необязательно)</label>
-            <input id="date-from" type="date" />
-          </div>
-          <div class="actions">
-            <button class="primary" onclick="start()">Начать миграцию</button>
-            <button class="ghost" onclick="stop()">Остановить</button>
-          </div>
+        <div>
+          <label>Каналы-источники</label>
+          <input id="source-ids" type="text" placeholder="-100123,-100456" />
         </div>
-        <p class="inline-note">* Все поля обязательны, кроме даты.</p>
-      </section>
-
-      <section class="panel logs-panel">
-        <h2>Логи</h2>
-        <div class="logs" id="log-viewport"></div>
-      </section>
-    </div>
-
-    <div class="modal" id="auth-modal">
-      <div class="modal-card">
-        <h3 id="modal-title">Введите номер телефона</h3>
-        <p id="modal-note">
-          Формат: +код страны + номер (например, +380501234567). После отправки придёт SMS.
-        </p>
-        <input id="modal-input" type="text" placeholder="+380501234567" autocomplete="tel" />
-        <div class="modal-actions">
-          <button class="primary" onclick="submitAuthStep()">Отправить</button>
-          <button class="ghost" onclick="closeModal()">Отменить</button>
+        <div>
+          <label>Целевой канал</label>
+          <input id="target-id" type="text" placeholder="-100789" />
+        </div>
+        <div>
+          <label>Копировать с (необязательно)</label>
+          <input id="date-from" type="date" />
+        </div>
+        <div class="actions">
+          <button class="primary" onclick="start()">Начать миграцию</button>
+          <button class="ghost" onclick="stop()">Остановить</button>
         </div>
       </div>
+      <p class="inline-note">* Все поля обязательны, кроме даты.</p>
+    </section>
+
+    <section class="panel logs-panel">
+      <h2>Логи</h2>
+      <div class="logs" id="log-viewport"></div>
+    </section>
+  </div>
+
+  <div class="modal" id="auth-modal">
+    <div class="modal-card">
+      <h3 id="modal-title">Введите телефон</h3>
+      <p id="modal-note">Формат: +код страны + номер (пример +380501234567).</p>
+      <input id="modal-input" type="text" placeholder="+380501234567" autocomplete="tel" />
+      <div class="modal-actions">
+        <button class="primary" onclick="submitAuthStep()">Отправить</button>
+        <button class="ghost" onclick="closeModal()">Отменить</button>
+      </div>
     </div>
+  </div>
 
-    <div id="toast" class="toast">Сессия сохранена. Вы будете автоматически авторизованы.</div>
+  <div id="toast" class="toast">Сессия сохранена.</div>
 
-    <script>
-      const modalLabels = {
-        phone: "Введите номер телефона",
-        code: "Введите код из SMS",
-        password: "Введите пароль 2FA",
+  <script>
+    const modalLabels = {
+      phone: "Введите номер телефона",
+      code: "Введите код из SMS",
+      password: "Введите пароль 2FA",
+    };
+    const modalNotes = {
+      phone: "Например +380501234567.",
+      code: "Код придёт в Telegram.",
+      password: "Введите пароль двухфакторной защиты.",
+    };
+
+    let waitingFor = "idle";
+    let modalOpenStep = null;
+    let toastTimeout = null;
+
+    function showToast(text) {
+      const toast = document.getElementById("toast");
+      toast.innerText = text;
+      toast.classList.add("visible");
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => toast.classList.remove("visible"), 3000);
+    }
+
+    function updateStatus(text, ok = false) {
+      const badge = document.getElementById("status-badge");
+      badge.innerText = `Статус: ${text}`;
+      badge.classList.toggle("status-ok", ok);
+      badge.classList.toggle("status-warn", !ok);
+    }
+
+    function updateSessionHint(text, ok = false) {
+      const hint = document.getElementById("session-hint");
+      hint.innerText = text;
+      hint.classList.toggle("hint-ok", ok);
+      hint.classList.toggle("hint-warn", !ok);
+    }
+
+    function showModal(step) {
+      const modal = document.getElementById("auth-modal");
+      if (modalOpenStep === step && modal.classList.contains("visible")) return;
+      modalOpenStep = step;
+      waitingFor = step;
+      document.getElementById("modal-title").innerText = modalLabels[step];
+      document.getElementById("modal-note").innerText = modalNotes[step];
+      document.getElementById("modal-input").value = "";
+      modal.classList.add("visible");
+    }
+
+    function closeModal() {
+      modalOpenStep = null;
+      document.getElementById("auth-modal").classList.remove("visible");
+    }
+
+    async function start() {
+      const payload = {
+        api_id: document.getElementById("api-id").value.trim(),
+        api_hash: document.getElementById("api-hash").value.trim(),
+        source_ids: document.getElementById("source-ids").value.trim(),
+        target_id: document.getElementById("target-id").value.trim(),
+        start_date: document.getElementById("date-from").value || null,
       };
-
-      const modalNotes = {
-        phone: "Номер в международном формате, например +380501234567.",
-        code: "Код придёт в Telegram на указанный номер.",
-        password: "Введите пароль двухфакторной защиты.",
-      };
-
-      let waitingFor = "idle";
-      let modalOpenStep = null;
-      let toastTimer = null;
-
-      function showToast(text) {
-        const toast = document.getElementById("toast");
-        toast.innerText = text;
-        toast.classList.add("visible");
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove("visible"), 3500);
+      try {
+        if (!payload.api_id || !/^\d+$/.test(payload.api_id)) throw new Error("API ID должен быть числом.");
+        if (!payload.api_hash) throw new Error("API Hash обязателен.");
+        if (!payload.source_ids) throw new Error("Укажите источники.");
+        if (!payload.target_id || isNaN(parseInt(payload.target_id, 10))) throw new Error("Целевой канал должен быть числом.");
+      } catch (err) {
+        alert(err.message);
+        return;
       }
 
-      function updateSessionHint(text, ok = false) {
-        const hint = document.getElementById("session-hint");
-        hint.innerText = text;
-        hint.classList.toggle("hint-ok", ok);
-        hint.classList.toggle("hint-warn", !ok);
+      const res = await fetch("/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        alert(error?.error || "Ошибка запуска.");
+        return;
+      }
+      updateStatus("Миграция запущена. Ожидаем авторизации...", false);
+    }
+
+    async function stop() {
+      await fetch("/stop", { method: "POST" });
+      updateStatus("Миграция остановлена.", false);
+      closeModal();
+    }
+
+    async function submitAuthStep() {
+      const value = document.getElementById("modal-input").value.trim();
+      if (!value) {
+        alert("Поле не может быть пустым.");
+        return;
+      }
+      if (waitingFor === "phone" && !/^\+\d+$/.test(value)) {
+        alert("Введите номер в формате +380501234567.");
+        return;
+      }
+      const res = await fetch("/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: waitingFor, value }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        alert(error?.error || "Ошибка авторизации.");
+        return;
       }
 
-      function validateMigrationForm(payload) {
-        if (!payload.api_id || !/^\d+$/.test(payload.api_id)) {
-          throw new Error("API ID должен быть числом.");
-        }
-        if (!payload.api_hash) {
-          throw new Error("API Hash обязателен.");
-        }
-        if (!payload.source_ids) {
-          throw new Error("Укажите каналы-источники.");
-        }
-        if (!payload.target_id) {
-          throw new Error("Укажите целевой канал.");
-        }
-        if (isNaN(parseInt(payload.target_id, 10))) {
-          throw new Error("Целевой канал должен быть числом.");
-        }
-      }
-
-      async function start() {
-        const payload = {
-          api_id: document.getElementById("api-id").value.trim(),
-          api_hash: document.getElementById("api-hash").value.trim(),
-          source_ids: document.getElementById("source-ids").value.trim(),
-          target_id: document.getElementById("target-id").value.trim(),
-          start_date: document.getElementById("date-from").value || null,
-        };
-
-        try {
-          validateMigrationForm(payload);
-        } catch (error) {
-          alert(error.message);
-          return;
-        }
-
-        const res = await fetch("/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const error = await res.json().catch(() => null);
-          alert(error?.error || "Не удалось запустить миграцию.");
-          return;
-        }
-
-        updateStatus("Запущена миграция. Ожидаем авторизацию.");
-      }
-
-      async function stop() {
-        const res = await fetch("/stop", { method: "POST" });
-        if (res.ok) {
-          updateStatus("Миграция остановлена.");
-          closeModal();
-        }
-      }
-
-      function showModal(step) {
-        const modal = document.getElementById("auth-modal");
-        if (modalOpenStep === step && modal.classList.contains("visible")) return;
-        modalOpenStep = step;
-        waitingFor = step;
-        document.getElementById("modal-title").innerText = modalLabels[step];
-        document.getElementById("modal-note").innerText = modalNotes[step];
-        document.getElementById("modal-input").value = "";
-        modal.classList.add("visible");
-      }
-
-      function closeModal() {
-        modalOpenStep = null;
-        document.getElementById("auth-modal").classList.remove("visible");
-      }
-
-      async function submitAuthStep() {
-        const value = document.getElementById("modal-input").value.trim();
-        if (!value) {
-          alert("Поле не может быть пустым.");
-          return;
-        }
-        if (waitingFor === "phone" && !/^\+\d+$/.test(value)) {
-          alert("Введите номер в формате +380501234567.");
-          return;
-        }
-
-        const res = await fetch("/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ step: waitingFor, value }),
-        });
-
-        if (!res.ok) {
-          const error = await res.json().catch(() => null);
-          alert(error?.error || "Ошибка авторизации");
-          return;
-        }
-
-        if (waitingFor === "phone") {
-          closeModal();
-          showModal("code");
-          updateStatus("Ожидаем код из SMS.");
-        } else if (waitingFor === "code") {
-          closeModal();
-          showModal("password");
-          updateStatus("Ожидаем пароль 2FA.");
-        } else if (waitingFor === "password") {
-          closeModal();
-          updateStatus("Авторизация завершена.");
-          showToast("Сессия сохранена, останется авторизованной до выхода.");
-          updateSessionHint("Сессия сохранена.", true);
-        }
-      }
-
-      async function logout() {
-        await fetch("/logout", { method: "POST" });
-        updateStatus("Ожидаем входа.");
-        updateSessionHint("Сессия не сохранена.", false);
+      if (waitingFor === "phone") {
         closeModal();
+        showModal("code");
+        updateStatus("Ожидаем код из SMS.", false);
+      } else if (waitingFor === "code") {
+        closeModal();
+        showModal("password");
+        updateStatus("Ожидаем пароль 2FA.", false);
+      } else if (waitingFor === "password") {
+        closeModal();
+        updateStatus("Авторизовано.", true);
+        updateSessionHint("Сессия сохранена до выхода.", true);
+        showToast("Сессия сохранена.");
       }
+    }
 
-      async function refreshLogs() {
-        try {
-          const res = await fetch("/logs");
-          const data = await res.json();
-          if (data.logs?.length) {
-            const viewport = document.getElementById("log-viewport");
-            data.logs.forEach((line) => {
-              const div = document.createElement("div");
-              div.className = "log-line";
-              div.innerText = line;
-              viewport.appendChild(div);
-            });
-            viewport.scrollTop = viewport.scrollHeight;
-          }
-        } catch (error) {
-          console.error("Не удалось обновить логи:", error);
+    async function logout() {
+      await fetch("/logout", { method: "POST" });
+      updateStatus("Ожидаем входа.", false);
+      updateSessionHint("Сессия не сохранена.", false);
+      closeModal();
+    }
+
+    async function refreshLogs() {
+      try {
+        const res = await fetch("/logs");
+        const data = await res.json();
+        if (data.logs?.length) {
+          const viewport = document.getElementById("log-viewport");
+          data.logs.forEach((line) => {
+            const div = document.createElement("div");
+            div.className = "log-line";
+            div.innerText = line;
+            viewport.appendChild(div);
+          });
+          viewport.scrollTop = viewport.scrollHeight;
         }
+      } catch (err) {
+        console.error("Ошибка логов:", err);
       }
+    }
 
-      function updateStatus(text) {
-        const badge = document.getElementById("status-badge");
-        badge.innerText = `Статус: ${text}`;
-        badge.classList.toggle("status-ok", text.toLowerCase().includes("авториз"));
-        badge.classList.toggle("status-warn", !text.toLowerCase().includes("авториз"));
-      }
-
-      async function pollStatus() {
-        try {
-          const res = await fetch("/status");
-          if (!res.ok) return;
-          const data = await res.json();
-          document.getElementById("logout-btn").style.display = data.authorized ? "inline-flex" : "none";
-
-          if (data.authorized) {
-            updateStatus(`Авторизовано (${data.current_phone || "номер неизвестен"})`);
-            updateSessionHint("Сессия сохранена.", true);
-            closeModal();
-          } else if (["phone", "code", "password"].includes(data.waiting_for)) {
-            updateStatus(`Ожидаем ${data.waiting_for}`);
-            showModal(data.waiting_for);
-          } else {
-            updateStatus("Ожидаем действий.");
-          }
-        } catch (error) {
-          console.error("Ошибка статуса:", error);
+    async function pollStatus() {
+      try {
+        const res = await fetch("/status");
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById("logout-btn").style.display = data.authorized ? "inline-flex" : "none";
+        if (data.authorized) {
+          updateStatus(`Авторизовано (${data.current_phone || "номер неизвестен"})`, true);
+          updateSessionHint("Сессия сохранена до выхода.", true);
+          closeModal();
+        } else if (["phone", "code", "password"].includes(data.waiting_for)) {
+          updateStatus(`Ожидаем ${data.waiting_for}`, false);
+          showModal(data.waiting_for);
+        } else {
+          updateStatus("Ожидаем действия.", false);
         }
+      } catch (err) {
+        console.error("Ошибка статуса:", err);
       }
+    }
 
-      setInterval(refreshLogs, 2000);
-      setInterval(pollStatus, 2000);
-      refreshLogs();
-      pollStatus();
-    </script>
-  </body>
+    setInterval(refreshLogs, 2000);
+    setInterval(pollStatus, 2000);
+    refreshLogs();
+    pollStatus();
+  </script>
+</body>
 </html>
