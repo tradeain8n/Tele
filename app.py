@@ -22,7 +22,7 @@ logic_instance = None
 session_state = {
     "authorized": False,
     "current_phone": None,
-    "auth_step": "idle",
+    "auth_step": "idle",  # idle / phone / code / password
     "provided": {},
     "events": {},
 }
@@ -33,13 +33,13 @@ def log(message: str):
     log_queue.put(f"[{timestamp}] {message}")
 
 
-def safe_response(handler):
-    @wraps(handler)
+def safe_response(fn):
+    @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
-            return handler(*args, **kwargs)
+            return fn(*args, **kwargs)
         except Exception as exc:
-            log(f"Ошибка API: {exc}")
+            log(f"API error: {exc}")
             return jsonify({"error": str(exc)}), 500
 
     return wrapper
@@ -48,9 +48,9 @@ def safe_response(handler):
 def auth_callback(step: str):
     session_state["auth_step"] = step
     log(f"Требуется авторизация ({step}).")
-    stored = session_state["provided"].pop(step, None)
-    if stored is not None:
-        return stored
+    existing = session_state["provided"].pop(step, None)
+    if existing is not None:
+        return existing
     event = threading.Event()
     session_state["events"][step] = event
     event.wait()
@@ -72,24 +72,6 @@ def cleanup_session_files():
             pass
 
 
-def start_logic(api_id, api_hash, sources, target_id, start_date):
-    global logic_instance
-    logic_instance = TelegramLogic(
-        api_id=api_id,
-        api_hash=api_hash,
-        log_callback=log,
-        auth_callback=auth_callback,
-        start_date=start_date,
-    )
-    try:
-        logic_instance.start_migration(sources, target_id)
-    except Exception as exc:
-        log(f"Критическая ошибка логики: {exc}")
-    finally:
-        log("Фоновой поток завершён.")
-        session_state["auth_step"] = "idle"
-
-
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -98,10 +80,10 @@ def index():
 @app.route("/logs")
 @safe_response
 def fetch_logs():
-    lines = []
+    msgs = []
     while not log_queue.empty():
-        lines.append(log_queue.get())
-    return jsonify({"logs": lines})
+        msgs.append(log_queue.get())
+    return jsonify({"logs": msgs})
 
 
 @app.route("/status")
@@ -123,20 +105,20 @@ def start():
     api_id = payload.get("api_id")
     api_hash = payload.get("api_hash")
     source_ids_text = payload.get("source_ids", "")
-    target_id = payload.get("target_id")
+    target = payload.get("target_id")
     start_date = payload.get("start_date")
 
     if not api_id or not api_hash:
-        raise ValueError("Укажите API ID и API Hash.")
+        raise ValueError("API ID и API Hash обязательны.")
     if not source_ids_text:
-        raise ValueError("Укажите хотя бы один канал-источник.")
+        raise ValueError("Каналы-источники обязательны.")
 
     try:
-        sources = [int(part.strip()) for part in source_ids_text.split(",") if part.strip()]
+        sources = [int(item.strip()) for item in source_ids_text.split(",") if item.strip()]
     except ValueError:
         raise ValueError("ID источников должны быть числами.")
     try:
-        target_id = int(target_id)
+        target = int(target)
     except (TypeError, ValueError):
         raise ValueError("ID целевого канала должен быть числом.")
 
@@ -146,12 +128,30 @@ def start():
 
     log("Запуск миграции...")
     thread = threading.Thread(
-        target=start_logic,
-        args=(api_id, api_hash, sources, target_id, parsed_date),
+        target=_run_logic,
+        args=(api_id, api_hash, sources, target, parsed_date),
         daemon=True,
     )
     thread.start()
     return jsonify({"status": "started"})
+
+
+def _run_logic(api_id, api_hash, sources, target, parsed_date):
+    global logic_instance
+    logic_instance = TelegramLogic(
+        api_id=api_id,
+        api_hash=api_hash,
+        log_callback=log,
+        auth_callback=auth_callback,
+        start_date=parsed_date,
+    )
+    try:
+        logic_instance.start_migration(sources, target)
+    except Exception as exc:
+        log(f"Критическая ошибка логики: {exc}")
+    finally:
+        log("Фоновой поток завершён.")
+        session_state["auth_step"] = "idle"
 
 
 @app.route("/stop", methods=["POST"])
