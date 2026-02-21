@@ -97,7 +97,6 @@ class TelegramLogic:
         if not text:
             return
 
-        # Если текст превышает лимит, Telegram всё равно примет его целиком, а мы сохраняем entities.
         await client.send_message(
             target_id,
             text,
@@ -163,6 +162,7 @@ class TelegramLogic:
                 files.append(path)
         if not files:
             return
+
         caption_msg = next((msg for msg in messages if msg.message), None)
         caption = caption_msg.message if caption_msg else None
         caption_trimmed, caption_rest = self._trim_caption(caption)
@@ -268,7 +268,7 @@ class TelegramLogic:
                 await self._copy_message(client, target_id, message)
                 self._update_progress(str(event.chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait при новом посте: {flood_wait.seconds}s.")
+                self.log(f"FloodWait при новом посте: {flood_exc.seconds}s.")
             except Exception as exc:
                 self.log(f"Ошибка нового поста {message.id}: {exc}")
 
