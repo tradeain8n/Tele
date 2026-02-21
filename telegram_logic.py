@@ -60,12 +60,11 @@ class TelegramLogic:
     @staticmethod
     def _message_meta(message) -> str:
         text = message.message or "<пустой текст>"
-        text_snippet = text[:120].replace("\n", " ")
+        snippet = text[:120].replace("\n", " ")
         entities = len(message.entities or [])
         media_type = type(message.media).__name__ if message.media else "нет медиа"
         return (
-            f"ID={message.id}, текст_len={len(text)}, "
-            f"entities={entities}, медиа={media_type}, сниппет={text_snippet!r}"
+            f"ID={message.id}, len={len(text)}, entities={entities}, media={media_type}, snippet={snippet!r}"
         )
 
     async def _authorize(self, client: TelegramClient):
@@ -96,28 +95,23 @@ class TelegramLogic:
 
     async def _copy_message(self, client, message, target_id: int):
         meta = self._message_meta(message)
-        self.log(f"[prep] Перед копированием: источник={message.chat_id}, {meta}")
+        self.log(f"[prep] Готовим копирование: источник={message.chat_id}, {meta}")
 
         try:
             await client.copy_message(entity=target_id, message=message)
-            self.log(f"[ok] copy_message -> Успех ({meta})")
+            self.log(f"[ok] copy_message -> успешно ({meta})")
+            return
         except AttributeError:
-            self.log(f"[warn] copy_message недоступен, пытаем forward_messages (as_copy)")
-            await client.forward_messages(
-                entity=target_id,
-                messages=message,
-                from_peer=message.chat_id,
-                as_copy=True,
-            )
-            self.log(f"[ok] forward_messages(as_copy=True) -> Успех ({meta})")
-        except TypeError:
-            self.log(f"[warn] as_copy не поддерживается, forward_messages стандартно")
-            await client.forward_messages(
-                entity=target_id,
-                messages=message,
-                from_peer=message.chat_id,
-            )
-            self.log(f"[ok] forward_messages -> Успех ({meta})")
+            self.log("[warn] copy_message не поддерживается, fallback на forward_messages.")
+        except Exception as exc:
+            self.log(f"[warn] Ошибка copy_message ({exc}), пробуем forward_messages.")
+
+        await client.forward_messages(
+            entity=target_id,
+            messages=message,
+            from_peer=message.chat_id,
+        )
+        self.log(f"[ok] forward_messages -> успешно ({meta})")
 
     async def _migrate_source(self, client, source_id: int, target_id: int):
         source_key = str(source_id)
@@ -132,27 +126,27 @@ class TelegramLogic:
             iterator_kwargs["offset_id"] = last_id
             self.log(f"Продолжаем с сообщения после ID {last_id}")
 
-        self.log(f"Итератор настроен: {iterator_kwargs}")
+        self.log(f"Настройки итератора: {iterator_kwargs}")
 
         async for message in client.iter_messages(source_id, **iterator_kwargs):
             if not self.is_running:
                 break
 
             if isinstance(message, MessageService):
-                self.log(f"Пропуск служебного сообщения {message.id}")
+                self.log(f"Служебное сообщение пропущено: {message.id}")
                 self._update_progress(source_key, message.id)
                 continue
 
             try:
                 await self._copy_message(client, message, target_id)
                 self._update_progress(source_key, message.id)
-                self.log(f"Скопировано сообщение {message.id} из {source_id}")
+                self.log(f"Сообщение {message.id} источника {source_id} скопировано.")
                 await asyncio.sleep(2)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait: ждем {flood_exc.seconds} сек.")
+                self.log(f"FloodWait ({flood_exc.seconds} сек.) — ждём.")
                 await asyncio.sleep(flood_exc.seconds)
             except Exception as exc:
-                self.log(f"Ошибка при копировании сообщения {message.id}: {exc}")
+                self.log(f"Ошибка при копировании {message.id}: {exc}")
                 self._update_progress(source_key, message.id)
                 await asyncio.sleep(5)
 
@@ -180,7 +174,7 @@ class TelegramLogic:
                 if chat_id:
                     self._update_progress(str(chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log(f"FloodWait при новом посте: {flood_exc.seconds} сек.")
+                self.log(f"FloodWait при новом посте ({flood_exc.seconds} сек.)")
                 await asyncio.sleep(flood_exc.seconds)
             except Exception as exc:
                 self.log(f"Ошибка нового поста {message.id}: {exc}")
@@ -194,7 +188,7 @@ class TelegramLogic:
                 await asyncio.sleep(1)
         finally:
             client.remove_event_handler(new_message_handler)
-            self.log("Отслеживание новых постов остановлено.")
+            self.log("Отслеживание новых постов завершено.")
 
     async def _run(self, source_ids: List[int], target_id: int):
         client = TelegramClient(self.SESSION_NAME, self.api_id, self.api_hash)
