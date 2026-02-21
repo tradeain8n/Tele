@@ -2,8 +2,7 @@ import asyncio
 import datetime
 import json
 import os
-import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import telethon
 from telethon import TelegramClient, events
@@ -12,11 +11,10 @@ from telethon.errors.rpcerrorlist import (
     PhoneCodeInvalidError,
     SessionPasswordNeededError,
 )
-from telethon.tl.types import MessageService, MessageMediaWebPage
+from telethon.tl.types import MessageService
 
 CAPTION_LIMIT = 1024
 TEXT_LIMIT = 4096
-TEMP_DIR = "temp_media"
 
 
 class TelegramLogic:
@@ -33,13 +31,13 @@ class TelegramLogic:
     ):
         self.api_id = int(api_id)
         self.api_hash = api_hash
+        self.start_date = start_date
         self.log_callback = log_callback
         self.auth_callback = auth_callback
-        self.start_date = start_date
-        self.progress = self._load_progress()
+        self.progress: Dict[str, int] = self._load_progress()
         self.is_running = False
-        os.makedirs(TEMP_DIR, exist_ok=True)
-        self.log_state(f"Telethon v{telethon.__version__}")
+        os.makedirs("temp_media", exist_ok=True)
+        self.log_state(f"Telethon {telethon.__version__}")
 
     def log(self, message: str):
         if self.log_callback:
@@ -48,17 +46,17 @@ class TelegramLogic:
     def log_state(self, message: str):
         self.log(f"[state] {message}")
 
-    def log_exception(self, message: str, exc: Exception):
-        self.log(f"[error] {message}: {type(exc).__name__} - {exc}")
+    def log_exception(self, text: str, exc: Exception):
+        self.log(f"[error] {text} ({type(exc).__name__}: {exc})")
 
-    def _load_progress(self):
+    def _load_progress(self) -> Dict[str, int]:
         if not os.path.exists(self.PROGRESS_FILE):
             return {}
         try:
             with open(self.PROGRESS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as exc:
-            self.log_exception("Не удалось загрузить progress.json", exc)
+            self.log_exception("Не удалось прочитать прогресс", exc)
             return {}
 
     def _save_progress(self):
@@ -68,159 +66,72 @@ class TelegramLogic:
         except Exception as exc:
             self.log_exception("Не удалось сохранить прогресс", exc)
 
-    def _update_progress(self, source_id, message_id):
-        self.progress[str(source_id)] = message_id
+    def _update_progress(self, source_id: str, message_id: int):
+        self.progress[source_id] = message_id
         self._save_progress()
 
     def _message_meta(self, message):
         text = message.message or "<пустой текст>"
-        snippet = text[:120].replace("\n", " ")
+        snippet = text[:80].replace("\n", " ")
         entities = len(message.entities or [])
-        media_type = type(message.media).__name__ if message.media else "нет медиа"
-        return f"ID={message.id}, len={len(text)}, entities={entities}, media={media_type}, snippet={snippet!r}"
+        media_name = type(message.media).__name__ if message.media else "нет медиа"
+        return f"ID={message.id}, len={len(text)}, entities={entities}, media={media_name}, snippet={snippet!r}"
 
     async def _authorize(self, client: TelegramClient):
         if await client.is_user_authorized():
-            self.log_state("Авторизация уже завершена, приветствие сессии.")
+            self.log_state("Уже авторизованы.")
             return
 
         self.log_state("Требуется авторизация.")
         phone = await client.loop.run_in_executor(None, self.auth_callback, "phone")
         if not phone:
-            raise Exception("Телефон не передан.")
-
+            raise Exception("Телефон не получен.")
         await client.send_code_request(phone)
 
         try:
             code = await client.loop.run_in_executor(None, self.auth_callback, "code")
             if not code:
-                raise Exception("Код не получен.")
+                raise Exception("Код не введён.")
             await client.sign_in(phone=phone, code=code)
         except SessionPasswordNeededError:
-            self.log_state("Телефон требует пароль 2FA.")
+            self.log_state("Требуется пароль 2FA.")
             password = await client.loop.run_in_executor(None, self.auth_callback, "password")
             if not password:
-                raise Exception("Пароль 2FA не передан.")
+                raise Exception("Пароль 2FA не введён.")
             await client.sign_in(password=password)
         except PhoneCodeInvalidError as exc:
             raise Exception(f"Неверный код: {exc}")
-        self.log_state("Авторизация завершена успешно.")
+        self.log_state("Авторизация завершена.")
 
-    def _split_text(self, text: str) -> List[str]:
-        return [text[i : i + TEXT_LIMIT] for i in range(0, len(text), TEXT_LIMIT)]
-
-    def _trim_caption(self, text: Optional[str]):
-        if not text:
-            return None, None
-        if len(text) <= CAPTION_LIMIT:
-            return text, None
-        return text[:CAPTION_LIMIT], text[CAPTION_LIMIT:]
-
-    async def _send_text(self, client, target_id, message):
-        text = message.message
-        if not text:
+    async def _copy_message(self, client, message, target_id: int):
+        if isinstance(message, MessageService):
             return
-        await client.send_message(
-            target_id,
-            text,
-            formatting_entities=message.entities,
-            link_preview=isinstance(message.media, MessageMediaWebPage),
-            silent=message.silent,
-        )
-
-    async def _send_media(self, client, target_id, message):
-        file_path = await message.download_media(file=TEMP_DIR)
-        caption = message.message or None
-        caption_trimmed, caption_rest = self._trim_caption(caption)
+        meta = self._message_meta(message)
+        self.log_state(f"Копируем сообщение: {meta}")
         try:
-            await client.send_file(
-                target_id,
-                file=file_path,
-                caption=caption_trimmed,
-                caption_entities=message.entities if caption_trimmed else None,
-                link_preview=False,
-                silent=message.silent,
-                supports_streaming=bool(message.video),
-                voice_note=bool(message.voice),
-                video_note=bool(message.video_note),
-                spoiler=bool(getattr(message, "has_spoiler", False)),
+            await client.forward_messages(
+                entity=target_id,
+                messages=message,
+                from_peer=message.chat_id,
+                as_copy=True,
             )
+            self.log_state(f"[ok] forward_messages as_copy ({meta})")
+            return
+        except TypeError:
+            self.log("[warn] as_copy не поддерживается, пробуем без него.")
         except Exception as exc:
-            self.log_exception(f"send_file упал для сообщения {message.id}", exc)
+            self.log_exception("copy_message/as_copy падает", exc)
+
+        try:
             await client.forward_messages(
                 entity=target_id,
                 messages=message,
                 from_peer=message.chat_id,
             )
-        finally:
-            if caption_rest:
-                await client.send_message(
-                    target_id,
-                    caption_rest,
-                    link_preview=False,
-                    silent=message.silent,
-                )
-            if file_path and os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except Exception as exc:
-                    self.log_exception("Не удалось удалить temp-файл", exc)
-
-    async def _send_album(self, client, target_id, messages):
-        files = []
-        for msg in sorted(messages, key=lambda m: m.id):
-            path = await msg.download_media(file=TEMP_DIR)
-            if path:
-                files.append(path)
-        if not files:
-            return
-        caption_msg = next((msg for msg in messages if msg.message), None)
-        caption = caption_msg.message if caption_msg else None
-        caption_trimmed, caption_rest = self._trim_caption(caption)
-        try:
-            await client.send_file(
-                target_id,
-                file=files,
-                caption=caption_trimmed,
-                caption_entities=caption_msg.entities if caption_trimmed and caption_msg else None,
-                supports_streaming=any(msg.video for msg in messages),
-                spoiler=any(getattr(msg, "has_spoiler", False) for msg in messages),
-                silent=caption_msg.silent if caption_msg else False,
-            )
+            self.log_state(f"[ok] forward_messages без as_copy ({meta})")
         except Exception as exc:
-            self.log_exception("send_file альбома упал", exc)
-            await client.forward_messages(
-                entity=target_id,
-                messages=[msg.id for msg in messages],
-                from_peer=messages[-1].chat_id,
-            )
-        if caption_rest and caption_msg:
-            await client.send_message(
-                target_id,
-                caption_rest,
-                link_preview=False,
-                silent=caption_msg.silent,
-            )
-        for file_path in files:
-            if file_path and os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except Exception as exc:
-                    self.log_exception("Не удалось удалить файл альбома", exc)
-
-    async def _copy_message(self, client, message, target_id: int):
-        if isinstance(message, MessageService):
-            return
-        if message.grouped_id:
-            return  # альбомы обрабатываются отдельно
-        meta = self._message_meta(message)
-        self.log_state(f"Копируем сообщение: {meta}")
-        if message.media:
-            await self._send_media(client, target_id, message)
-        else:
-            await self._send_text(client, target_id, message)
-        self.log_state(f"Сообщение {message.id} отправлено. Ждём 15 секунд для стабилизации.")
-        await asyncio.sleep(15)
+            self.log_exception("forward_messages тоже упал", exc)
+            raise
 
     async def _migrate_source(self, client, source_id: int, target_id: int):
         source_key = str(source_id)
@@ -228,60 +139,34 @@ class TelegramLogic:
         iterator_kwargs = {"reverse": True}
         if self.start_date:
             iterator_kwargs["offset_date"] = self.start_date
-            self.log_state(f"Копируем с {self.start_date.strftime('%d.%m.%Y')}")
+            self.log_state(f"Фильтр: с {self.start_date.strftime('%d.%m.%Y')}")
         else:
             last_id = self.progress.get(source_key, 0)
             iterator_kwargs["offset_id"] = last_id
-            self.log_state(f"Продолжаем после ID {last_id}")
-
-        current_group = None
-        group_buffer = []
+            self.log_state(f"Продолжаем с сообщения после ID {last_id}")
+        self.log_state(f"iterator(kwargs)={iterator_kwargs}")
 
         async for message in client.iter_messages(source_id, **iterator_kwargs):
             if not self.is_running:
                 break
             if isinstance(message, MessageService):
-                self.log_state(f"Служебное сообщение пропущено: {message.id}")
+                self.log(f"Пропущено служебное сообщение {message.id}")
                 self._update_progress(source_key, message.id)
                 continue
-
-            if message.grouped_id:
-                if current_group is None:
-                    current_group = message.grouped_id
-                if message.grouped_id == current_group:
-                    group_buffer.append(message)
-                    continue
-                else:
-                    await self._send_album(client, target_id, group_buffer)
-                    self._update_progress(source_key, max(m.id for m in group_buffer))
-                    group_buffer = [message]
-                    current_group = message.grouped_id
-                    continue
-
-            if group_buffer:
-                await self._send_album(client, target_id, group_buffer)
-                self._update_progress(source_key, max(m.id for m in group_buffer))
-                group_buffer = []
-                current_group = None
-
             try:
                 await self._copy_message(client, message, target_id)
                 self._update_progress(source_key, message.id)
+                await asyncio.sleep(15)
             except FloodWaitError as flood_exc:
-                self.log_state(f"FloodWait ({flood_exc.seconds}s) — пауза.")
+                self.log_state(f"FloodWait: ждём {flood_exc.seconds} сек.")
                 await asyncio.sleep(flood_exc.seconds)
-                continue
             except Exception as exc:
                 self.log_exception(f"Ошибка копирования {message.id}", exc)
                 self._update_progress(source_key, message.id)
                 await asyncio.sleep(5)
 
-        if group_buffer:
-            await self._send_album(client, target_id, group_buffer)
-            self._update_progress(source_key, max(m.id for m in group_buffer))
-
     async def _monitor_new_posts(self, client, target_id: int, source_ids: List[int]):
-        self.log_state("Запущено отслеживание новых постов.")
+        self.log_state("Запущено отслеживание новых публикаций.")
 
         async def handler(event):
             if not self.is_running:
@@ -289,51 +174,32 @@ class TelegramLogic:
             message = event.message
             if isinstance(message, MessageService):
                 return
-            if message.grouped_id:
-                return
+            meta = self._message_meta(message)
+            self.log_state(f"Новый пост: {meta}")
             try:
                 await self._copy_message(client, message, target_id)
-                chat_id = (
-                    message.chat_id
-                    if message.chat_id
-                    else getattr(message.peer_id, "channel_id", None)
-                )
+                chat_id = message.chat_id or getattr(message.peer_id, "channel_id", None)
                 if chat_id:
                     self._update_progress(str(chat_id), message.id)
             except FloodWaitError as flood_exc:
-                self.log_state(f"FloodWait при новом посте ({flood_exc.seconds}s)")
+                self.log_state(f"FloodWait при новом посте: {flood_exc.seconds}s")
                 await asyncio.sleep(flood_exc.seconds)
             except Exception as exc:
-                self.log_exception(f"Ошибка нового поста {message.id}", exc)
+                self.log_exception(f"Новый пост {message.id} упал", exc)
 
-        async def album_handler(event):
-            if not self.is_running:
-                return
-            try:
-                await self._send_album(client, target_id, event.messages)
-                self._update_progress(str(event.chat_id), max(m.id for m in event.messages))
-            except FloodWaitError as flood_exc:
-                self.log_state(f"FloodWait альбома ({flood_exc.seconds}s)")
-                await asyncio.sleep(flood_exc.seconds)
-            except Exception as exc:
-                self.log_exception("Ошибка альбома", exc)
-
-        client.add_event_handler(handler, events.NewMessage(chats=source_ids))
-        client.add_event_handler(album_handler, events.Album(chats=source_ids))
-
+        handler = client.add_event_handler(handler, events.NewMessage(chats=source_ids))
         try:
             while self.is_running:
                 await asyncio.sleep(1)
         finally:
             client.remove_event_handler(handler)
-            client.remove_event_handler(album_handler)
-            self.log_state("Отслеживание новых постов остановлено.")
+            self.log_state("Отслеживание закрыто.")
 
     async def _run(self, source_ids: List[int], target_id: int):
         client = TelegramClient(self.SESSION_NAME, self.api_id, self.api_hash)
         await client.connect()
         try:
-            self.log_state("Подключение к Telegram установлено.")
+            self.log_state("Подключились к Telegram.")
             await self._authorize(client)
             for source in source_ids:
                 if not self.is_running:
@@ -343,11 +209,11 @@ class TelegramLogic:
                 await self._monitor_new_posts(client, target_id, source_ids)
         finally:
             await client.disconnect()
-            self.log_state("Соединение закрыто.")
+            self.log_state("Отключились от Telegram.")
 
     def start_migration(self, source_ids: List[int], target_id: int):
         if not source_ids:
-            raise ValueError("Нет источников.")
+            raise ValueError("Не указано ни одного источника.")
         self.is_running = True
         try:
             asyncio.run(self._run(source_ids, target_id))
