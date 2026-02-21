@@ -36,7 +36,6 @@ class TelegramLogic:
         self.session_name = "cloner_session"
         self.progress = self._load_progress()
         self.is_running = False
-
         os.makedirs(self.TEMP_DIR, exist_ok=True)
 
     def log(self, message: str):
@@ -86,14 +85,24 @@ class TelegramLogic:
             raise Exception(f"Неверный код: {exc}")
         self.log("Авторизация прошла успешно.")
 
-    async def _send_text(self, client, target_id, message):
-        if not message.message:
-            return
+    def _split_text(self, text: str) -> List[str]:
         chunks = []
-        text = message.message
         while text:
             chunks.append(text[:TEXT_LIMIT])
             text = text[TEXT_LIMIT:]
+        return chunks
+
+    def _trim_caption(self, text: Optional[str]):
+        if not text:
+            return None, None
+        if len(text) <= CAPTION_LIMIT:
+            return text, None
+        return text[:CAPTION_LIMIT], text[CAPTION_LIMIT:]
+
+    async def _send_text(self, client, target_id, message):
+        if not message.message:
+            return
+        chunks = self._split_text(message.message)
         if not chunks:
             return
         await client.send_message(
@@ -103,10 +112,10 @@ class TelegramLogic:
             link_preview=isinstance(message.media, MessageMediaWebPage),
             silent=message.silent,
         )
-        for part in chunks[1:]:
+        for chunk in chunks[1:]:
             await client.send_message(
                 target_id,
-                part,
+                chunk,
                 link_preview=False,
                 silent=message.silent,
             )
@@ -114,18 +123,39 @@ class TelegramLogic:
     async def _send_media(self, client, target_id, message):
         file_path = await message.download_media(file=self.TEMP_DIR)
         caption = message.message or None
-        await client.send_file(
-            target_id,
-            file=file_path,
-            caption=caption[:CAPTION_LIMIT] if caption else None,
-            caption_entities=message.entities if caption else None,
-            link_preview=False,
-            silent=message.silent,
-            supports_streaming=bool(message.video),
-            voice_note=bool(message.voice),
-            video_note=bool(message.video_note),
-            spoiler=bool(getattr(message, "has_spoiler", False)),
-        )
+        caption_trimmed, caption_rest = self._trim_caption(caption)
+        try:
+            await client.send_file(
+                target_id,
+                file=file_path,
+                caption=caption_trimmed,
+                caption_entities=message.entities if caption_trimmed else None,
+                link_preview=False,
+                silent=message.silent,
+                supports_streaming=bool(message.video),
+                voice_note=bool(message.voice),
+                video_note=bool(message.video_note),
+                spoiler=bool(getattr(message, "has_spoiler", False)),
+            )
+        except Exception as exc:
+            self.log(f"Ошибка send_file для {message.id}: {exc}")
+            await client.forward_messages(
+                entity=target_id,
+                messages=message,
+                from_peer=message.chat_id,
+            )
+            return
+
+        if caption_rest:
+            rest_chunks = self._split_text(caption_rest)
+            for chunk in rest_chunks:
+                await client.send_message(
+                    target_id,
+                    chunk,
+                    link_preview=False,
+                    silent=message.silent,
+                )
+
         if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -137,8 +167,8 @@ class TelegramLogic:
             return
         if message.media:
             await self._send_media(client, target_id, message)
-        else:
-            await self._send_text(client, target_id, message)
+            return
+        await self._send_text(client, target_id, message)
 
     async def _send_album(self, client, target_id, messages):
         files = []
@@ -150,16 +180,35 @@ class TelegramLogic:
             return
         caption_msg = next((msg for msg in messages if msg.message), None)
         caption = caption_msg.message if caption_msg else None
-        await client.send_file(
-            target_id,
-            file=files,
-            caption=caption[:CAPTION_LIMIT] if caption else None,
-            caption_entities=caption_msg.entities if caption else None,
-            supports_streaming=any(msg.video for msg in messages),
-            silent=caption_msg.silent if caption_msg else False,
-        )
+        caption_trimmed, caption_rest = self._trim_caption(caption)
+        try:
+            await client.send_file(
+                target_id,
+                file=files,
+                caption=caption_trimmed,
+                caption_entities=caption_msg.entities if caption_trimmed and caption_msg else None,
+                supports_streaming=any(msg.video for msg in messages),
+                spoiler=any(getattr(msg, "has_spoiler", False) for msg in messages),
+                silent=caption_msg.silent if caption_msg else False,
+            )
+        except Exception as exc:
+            self.log(f"Ошибка send_file альбома: {exc}")
+            await client.forward_messages(
+                entity=target_id,
+                messages=[msg.id for msg in messages],
+                from_peer=messages[-1].chat_id,
+            )
+        if caption_rest and caption_msg:
+            rest_chunks = self._split_text(caption_rest)
+            for chunk in rest_chunks:
+                await client.send_message(
+                    target_id,
+                    chunk,
+                    link_preview=False,
+                    silent=caption_msg.silent,
+                )
         for path in files:
-            if os.path.exists(path):
+            if path and os.path.exists(path):
                 try:
                     os.remove(path)
                 except Exception:
@@ -183,11 +232,9 @@ class TelegramLogic:
         async for message in client.iter_messages(source_id, **iterator_kwargs):
             if not self.is_running:
                 break
-
             if isinstance(message, MessageService):
                 self._update_progress(source_key, message.id)
                 continue
-
             if message.grouped_id:
                 if current_group is None:
                     current_group = message.grouped_id
@@ -200,13 +247,11 @@ class TelegramLogic:
                     group_buffer = [message]
                     current_group = message.grouped_id
                     continue
-
             if group_buffer:
                 await self._send_album(client, target_id, group_buffer)
                 self._update_progress(source_key, max(m.id for m in group_buffer))
                 group_buffer = []
                 current_group = None
-
             try:
                 await self._copy_message(client, target_id, message)
                 self._update_progress(source_key, message.id)
@@ -233,9 +278,9 @@ class TelegramLogic:
             message = event.message
             if isinstance(message, MessageService):
                 return
+            if message.grouped_id:
+                return
             try:
-                if message.grouped_id:
-                    return
                 await self._copy_message(client, target_id, message)
                 self._update_progress(str(event.chat_id), message.id)
             except FloodWaitError as flood_exc:
