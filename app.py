@@ -1,4 +1,5 @@
 import datetime
+import glob
 import os
 import queue
 import threading
@@ -11,8 +12,7 @@ try:
 except Exception as exc:
     raise RuntimeError(f"Не удалось импортировать TelegramLogic: {exc}")
 
-SESSION_BASE = "cloner_session"
-SESSION_FILES = [f"{SESSION_BASE}.session", f"{SESSION_BASE}.session-journal"]
+SESSION_PATTERN = "cloner_session*"
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -65,10 +65,10 @@ def set_auth_data(step: str, value: str):
 
 
 def cleanup_session_files():
-    for path in SESSION_FILES:
+    for path in glob.glob(SESSION_PATTERN):
         try:
             os.remove(path)
-        except FileNotFoundError:
+        except Exception:
             pass
 
 
